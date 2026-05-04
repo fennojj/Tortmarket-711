@@ -35,7 +35,8 @@ const DEFAULT_USER: User = {
 };
 
 export const DAILY_BASE_REWARD = 500;
-export const WELCOME_BONUS = 25000;
+export const WELCOME_BONUS = 50000;
+export const SHARE_BONUS = 7500;
 export const WEEKLY_GRAND_PRIZE = 1000000;
 
 function isSameDay(a: number, b: number): boolean {
@@ -249,6 +250,19 @@ export const [AppProvider, useApp] = createContextHook(() => {
     return { ok: true as const, amount: WELCOME_BONUS };
   }, [user, persistMutation]);
 
+  const claimShareBonus = useCallback(() => {
+    if (user.shareBonusClaimed) return { ok: false as const, reason: "Already claimed", amount: 0 };
+    const next: User = {
+      ...user,
+      pointBalance: user.pointBalance + SHARE_BONUS,
+      shareBonusClaimed: true,
+    };
+    setUser(next);
+    persistMutation.mutate(next);
+    console.log("[AppProvider] share bonus claimed", { amount: SHARE_BONUS });
+    return { ok: true as const, amount: SHARE_BONUS };
+  }, [user, persistMutation]);
+
   const resetBalance = useCallback(() => {
     const next = { ...DEFAULT_USER };
     setUser(next);
@@ -413,6 +427,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     redeemReward,
     claimDaily,
     claimWelcomeBonus,
+    claimShareBonus,
     canClaimDaily,
     resetBalance,
     registerUser,

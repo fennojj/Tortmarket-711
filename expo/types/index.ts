@@ -54,6 +54,7 @@ export interface User {
   lastClaimAt?: number;
   streakDays?: number;
   welcomeBonusClaimed?: boolean;
+  shareBonusClaimed?: boolean;
   email?: string;
   joinedAt?: number;
   source?: string;

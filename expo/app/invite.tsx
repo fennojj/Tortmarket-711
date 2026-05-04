@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -30,7 +31,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
-import { useApp } from "@/providers/AppProvider";
+import { SHARE_BONUS, useApp } from "@/providers/AppProvider";
 import {
   getInviteMessage,
   getInviteUrl,
@@ -40,8 +41,19 @@ import {
 } from "@/utils/referrals";
 
 export default function InviteScreen(): React.ReactElement {
-  const { user, creditOwnReferral } = useApp();
+  const { user, creditOwnReferral, claimShareBonus } = useApp();
   const [copied, setCopied] = useState<boolean>(false);
+
+  const tryAwardShareBonus = useCallback(() => {
+    if (user.shareBonusClaimed) return;
+    const res = claimShareBonus();
+    if (res.ok) {
+      Alert.alert(
+        "+" + SHARE_BONUS.toLocaleString() + " pts",
+        "Founder Share Bonus unlocked. Thanks for spreading the word.",
+      );
+    }
+  }, [user.shareBonusClaimed, claimShareBonus]);
 
   const code = user.referralCode ?? "TORTSITE";
   const url = useMemo(() => getInviteUrl(code), [code]);
@@ -60,10 +72,11 @@ export default function InviteScreen(): React.ReactElement {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
       setTimeout(() => setCopied(false), 1800);
+      tryAwardShareBonus();
     } catch (e) {
       console.log("[Invite] copy error", e);
     }
-  }, [url]);
+  }, [url, tryAwardShareBonus]);
 
   const handleShare = useCallback(async () => {
     try {
@@ -81,10 +94,11 @@ export default function InviteScreen(): React.ReactElement {
         return;
       }
       await Share.share({ message, url });
+      tryAwardShareBonus();
     } catch (e) {
       console.log("[Invite] share error", e);
     }
-  }, [message, url]);
+  }, [message, url, tryAwardShareBonus]);
 
   const openExternal = useCallback(async (target: string, label: string) => {
     try {
@@ -94,6 +108,7 @@ export default function InviteScreen(): React.ReactElement {
       const supported = Platform.OS === "web" ? true : await Linking.canOpenURL(target);
       if (supported) {
         await Linking.openURL(target);
+        tryAwardShareBonus();
       } else {
         await Clipboard.setStringAsync(message);
         setCopied(true);
@@ -102,7 +117,7 @@ export default function InviteScreen(): React.ReactElement {
     } catch (e) {
       console.log("[Invite] channel error", label, e);
     }
-  }, [message]);
+  }, [message, tryAwardShareBonus]);
 
   const encodedMsg = useMemo(() => encodeURIComponent(message), [message]);
   const encodedUrl = useMemo(() => encodeURIComponent(url), [url]);
