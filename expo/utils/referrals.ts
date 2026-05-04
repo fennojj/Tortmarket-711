@@ -23,13 +23,15 @@ export function normalizeRefCode(raw: string | null | undefined): string | null 
 }
 
 /**
- * Public web invite URL. Points at the project's Rork web preview, which
- * serves the SPA and runs the same React Native code on the web. The home
- * screen reads ?ref=… and redirects into /join.
+ * Public web invite URL. Points at the project's friendly Rork subdomain,
+ * which serves the SPA and runs the same React Native code on the web. The
+ * home screen reads ?ref=… and redirects into /join.
+ *
+ * We intentionally use the friendly slug (tort-market.rork.app) rather than
+ * the raw project-id subdomain — testers reported the project-id URL was
+ * inconsistent / didn't open for some recipients.
  */
-const RORK_PROJECT_ID =
-  process.env.EXPO_PUBLIC_PROJECT_ID ?? "q15qiisdf8i47w9fba50o";
-export const INVITE_WEB_HOST = `https://${RORK_PROJECT_ID}.rork.app`;
+export const INVITE_WEB_HOST = "https://tort-market.rork.app";
 
 export function getInviteUrl(code: string): string {
   return `${INVITE_WEB_HOST}?ref=${encodeURIComponent(code)}`;
