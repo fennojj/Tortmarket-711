@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Tort Site",
+    "slug": "q15qiisdf8i47w9fba50o",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "rork-app",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1220"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.rork.q15qiisdf8i47w9fba50o"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0B1220"
+      },
+      "package": "app.rork.q15qiisdf8i47w9fba50o"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png",
+      "title": "Tort Site — Mass Tort Forecasting Game",
+      "description": "Free play-money forecasting game on 70+ active MDL mass tort cases. Forecast Roundup, PFAS, Depo-Provera, Camp Lejeune and more. AI-powered edge model, real-time alerts, leaderboard competitions. No cash, no wagering.",
+      "lang": "en",
+      "themeColor": "#0B1220",
+      "backgroundColor": "#0B1220"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://tort-market.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
