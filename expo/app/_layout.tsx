@@ -11,6 +11,7 @@ import { EngagementProvider } from "@/providers/EngagementProvider";
 import { CampaignProvider } from "@/providers/CampaignProvider";
 import { SponsorMapProvider } from "@/providers/SponsorMapProvider";
 import { SponsorConfigProvider } from "@/providers/SponsorConfigProvider";
+import { SponsorUpdatesProvider } from "@/providers/SponsorUpdatesProvider";
 import { MarketsProvider } from "@/providers/MarketsProvider";
 import { LiveSignalsProvider } from "@/providers/LiveSignalsProvider";
 import OnboardingModal from "@/components/OnboardingModal";
@@ -54,6 +55,10 @@ function RootLayoutNav() {
         name="admin"
         options={{ title: "Sponsor Admin", presentation: "modal" }}
       />
+      <Stack.Screen
+        name="sponsor-updates"
+        options={{ title: "Sponsor Updates", presentation: "card" }}
+      />
     </Stack>
   );
 }
@@ -73,6 +78,7 @@ export default function RootLayout() {
               <EngagementProvider>
                 <CampaignProvider>
                   <SponsorConfigProvider>
+                    <SponsorUpdatesProvider>
                     <SponsorMapProvider>
                       <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg }}>
                         <SafeAreaProvider>
@@ -83,6 +89,7 @@ export default function RootLayout() {
                         </SafeAreaProvider>
                       </GestureHandlerRootView>
                     </SponsorMapProvider>
+                    </SponsorUpdatesProvider>
                   </SponsorConfigProvider>
                 </CampaignProvider>
               </EngagementProvider>
