@@ -16,6 +16,7 @@ import { Stack } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Check,
+  CheckCircle2,
   Copy,
   Gift,
   Link as LinkIcon,
@@ -29,6 +30,7 @@ import {
   Trophy,
   Twitter,
   Users,
+  Zap,
 } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
 import { SHARE_BONUS, useApp } from "@/providers/AppProvider";
@@ -269,6 +271,34 @@ export default function InviteScreen(): React.ReactElement {
           </View>
         </View>
 
+        <View
+          style={[styles.shareBonusCard, user.shareBonusClaimed && styles.shareBonusCardDone]}
+          testID="invite-share-bonus"
+        >
+          <View style={[styles.shareBonusIcon, user.shareBonusClaimed && styles.shareBonusIconDone]}>
+            {user.shareBonusClaimed ? (
+              <CheckCircle2 size={18} color="#fff" />
+            ) : (
+              <Zap size={18} color="#0B1220" />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.shareBonusEyebrow}>
+              {user.shareBonusClaimed ? "FOUNDER SHARE BONUS · CLAIMED" : "ONE-TIME FOUNDER SHARE BONUS"}
+            </Text>
+            <Text style={styles.shareBonusTitle}>
+              {user.shareBonusClaimed
+                ? `+${SHARE_BONUS.toLocaleString()} pts already credited`
+                : `+${SHARE_BONUS.toLocaleString()} pts the moment you share`}
+            </Text>
+            <Text style={styles.shareBonusBody}>
+              {user.shareBonusClaimed
+                ? "Thanks for spreading the word. Keep inviting to stack referral pts."
+                : "Tap any channel below or copy your link — bonus drops instantly, no signup required."}
+            </Text>
+          </View>
+        </View>
+
         <Pressable onPress={handleShare} style={styles.shareBtn} testID="invite-share">
           <Share2 size={16} color="#fff" />
           <Text style={styles.shareText}>Send gift to a friend</Text>
@@ -418,6 +448,28 @@ const styles = StyleSheet.create({
   giftEyebrow: { color: Colors.orange, fontSize: 9.5, fontWeight: "900", letterSpacing: 0.8 },
   giftTitle: { color: Colors.text, fontSize: 15, fontWeight: "900", marginTop: 2 },
   giftBody: { color: Colors.textSecondary, fontSize: 12, fontWeight: "600", marginTop: 3, lineHeight: 17 },
+
+  shareBonusCard: {
+    flexDirection: "row", gap: 12, alignItems: "center",
+    marginTop: 12,
+    padding: 14,
+    backgroundColor: "rgba(250, 204, 21, 0.10)",
+    borderRadius: 18,
+    borderWidth: 1, borderColor: "rgba(250, 204, 21, 0.45)",
+  },
+  shareBonusCardDone: {
+    backgroundColor: "rgba(16, 185, 129, 0.10)",
+    borderColor: "rgba(16, 185, 129, 0.45)",
+  },
+  shareBonusIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: Colors.yellow,
+    alignItems: "center", justifyContent: "center",
+  },
+  shareBonusIconDone: { backgroundColor: Colors.emerald },
+  shareBonusEyebrow: { color: Colors.yellow, fontSize: 9.5, fontWeight: "900", letterSpacing: 0.8 },
+  shareBonusTitle: { color: Colors.text, fontSize: 15, fontWeight: "900", marginTop: 2, letterSpacing: -0.2 },
+  shareBonusBody: { color: Colors.textSecondary, fontSize: 12, fontWeight: "600", marginTop: 3, lineHeight: 17 },
 
   shareBtn: {
     marginTop: 12,
