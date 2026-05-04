@@ -15,17 +15,21 @@ import * as Haptics from "expo-haptics";
 import { Stack } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  Apple,
   Check,
   CheckCircle2,
   Copy,
+  Download,
   Gift,
   Link as LinkIcon,
   Mail,
   MessageCircle,
   MessagesSquare,
+  PlayCircle,
   Rocket,
   Send,
   Share2,
+  Smartphone,
   Sparkles,
   Trophy,
   Twitter,
@@ -35,6 +39,8 @@ import {
 import { Colors } from "@/constants/colors";
 import { SHARE_BONUS, useApp } from "@/providers/AppProvider";
 import {
+  EXPO_GO_ANDROID_URL,
+  EXPO_GO_IOS_URL,
   getInviteMessage,
   getInviteUrl,
   getLaunchProgress,
@@ -327,8 +333,60 @@ export default function InviteScreen(): React.ReactElement {
           </View>
         </View>
 
+        <View style={styles.expoCard} testID="invite-expo-instructions">
+          <View style={styles.expoHeader}>
+            <View style={styles.expoIcon}>
+              <Smartphone size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.expoEyebrow}>HOW YOUR FRIENDS DOWNLOAD</Text>
+              <Text style={styles.expoTitle}>Tort Site runs inside Expo Go</Text>
+            </View>
+          </View>
+          <Text style={styles.expoBody}>
+            We’re in pre-TestFlight mode. Friends install the free Expo Go app once — then your invite link opens Tort Site instantly inside it. No App Store listing needed.
+          </Text>
+
+          <View style={styles.expoSteps}>
+            <Step n={1} title="Install Expo Go" body="Free app on the App Store or Google Play. ~30 sec download." />
+            <Step n={2} title="Tap your invite link on phone" body="It auto-opens Tort Site inside Expo Go — no account or login needed." />
+            <Step n={3} title="Play live" body={`They sign up, get +${REFERRAL_BONUS_INVITEE.toLocaleString()} pts, and you earn +${REFERRAL_BONUS_INVITER.toLocaleString()} pts.`} />
+          </View>
+
+          <View style={styles.expoStoreRow}>
+            <Pressable
+              onPress={() => openExternal(EXPO_GO_IOS_URL, "Expo Go iOS")}
+              style={({ pressed }) => [styles.storeBtn, pressed && styles.channelBtnPressed]}
+              testID="invite-expo-ios"
+            >
+              <Apple size={16} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.storeBtnEyebrow}>DOWNLOAD ON</Text>
+                <Text style={styles.storeBtnLabel}>App Store</Text>
+              </View>
+              <Download size={14} color="rgba(255,255,255,0.7)" />
+            </Pressable>
+            <Pressable
+              onPress={() => openExternal(EXPO_GO_ANDROID_URL, "Expo Go Android")}
+              style={({ pressed }) => [styles.storeBtn, pressed && styles.channelBtnPressed]}
+              testID="invite-expo-android"
+            >
+              <PlayCircle size={16} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.storeBtnEyebrow}>GET IT ON</Text>
+                <Text style={styles.storeBtnLabel}>Google Play</Text>
+              </View>
+              <Download size={14} color="rgba(255,255,255,0.7)" />
+            </Pressable>
+          </View>
+
+          <Text style={styles.expoNote}>
+            Tip: send the invite via Messages or WhatsApp so the link opens directly on their phone. Tapping the link on a phone with Expo Go installed launches Tort Site in one step.
+          </Text>
+        </View>
+
         <View style={styles.howRow}>
-          <Text style={styles.howTitle}>How it works</Text>
+          <Text style={styles.howTitle}>How rewards work</Text>
           <Step n={1} title="Share your link" body="Send via text, X, Reddit, or any group chat." />
           <Step n={2} title="They sign up" body={`Friend joins via your link, gets +${REFERRAL_BONUS_INVITEE.toLocaleString()} bonus pts.`} />
           <Step n={3} title="You earn" body={`+${REFERRAL_BONUS_INVITER.toLocaleString()} pts each, climbing the leaderboard fast.`} />
@@ -518,6 +576,37 @@ const styles = StyleSheet.create({
   stepNumText: { color: Colors.blue, fontSize: 13, fontWeight: "900" },
   stepTitle: { color: Colors.text, fontSize: 14, fontWeight: "800" },
   stepBody: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: "600", marginTop: 2, lineHeight: 18 },
+
+  expoCard: {
+    marginTop: 22,
+    backgroundColor: Colors.surface,
+    borderRadius: 18, padding: 16,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  expoHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  expoIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: Colors.blue,
+    alignItems: "center", justifyContent: "center",
+  },
+  expoEyebrow: { color: Colors.blue, fontSize: 9.5, fontWeight: "900", letterSpacing: 0.8 },
+  expoTitle: { color: Colors.text, fontSize: 15, fontWeight: "900", marginTop: 2, letterSpacing: -0.2 },
+  expoBody: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: "600", marginTop: 12, lineHeight: 18 },
+  expoSteps: { marginTop: 8 },
+  expoStoreRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  storeBtn: {
+    flex: 1,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "#0B1220",
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 12,
+  },
+  storeBtnEyebrow: { color: "rgba(255,255,255,0.6)", fontSize: 8.5, fontWeight: "800", letterSpacing: 0.6 },
+  storeBtnLabel: { color: "#fff", fontSize: 13, fontWeight: "900", marginTop: 1 },
+  expoNote: {
+    color: Colors.textMuted, fontSize: 11.5, fontWeight: "600",
+    marginTop: 12, lineHeight: 16,
+  },
 
   legal: {
     flexDirection: "row", gap: 6, alignItems: "flex-start",

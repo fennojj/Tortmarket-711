@@ -43,13 +43,20 @@ export function getInviteAppDeepLink(code: string): string {
   return `rork-app://join?ref=${encodeURIComponent(code)}`;
 }
 
+export const EXPO_GO_IOS_URL = "https://apps.apple.com/app/expo-go/id982107779";
+export const EXPO_GO_ANDROID_URL = "https://play.google.com/store/apps/details?id=host.exp.exponent";
+
 export function getInviteMessage(code: string, handle: string): string {
   const url = getInviteUrl(code);
   return [
     `${handle} invited you to Tort Site — the prediction market for mass tort cases.`,
     "",
     "Trade on 70+ active MDL cases (Roundup, PFAS, Depo-Provera, Camp Lejeune, more).",
-    "Sign up with this link and we both get bonus points:",
+    "",
+    "How to play (2 min):",
+    "1. Install \"Expo Go\" from the App Store / Play Store",
+    "2. Open this link on your phone — it launches inside Expo Go",
+    "3. Sign up and we both get bonus points",
     "",
     url,
   ].join("\n");
