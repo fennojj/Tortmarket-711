@@ -333,25 +333,35 @@ export default function InviteScreen(): React.ReactElement {
           </View>
         </View>
 
+        <View style={styles.zeroFrictionCard} testID="invite-zero-friction">
+          <View style={styles.zeroFrictionBadge}>
+            <Zap size={11} color="#0B1220" />
+            <Text style={styles.zeroFrictionBadgeText}>ZERO FRICTION</Text>
+          </View>
+          <Text style={styles.zeroFrictionTitle}>Friends just tap the link.</Text>
+          <Text style={styles.zeroFrictionBody}>
+            The invite opens Tort Site directly in their browser — no app install, no Expo Go, no App Store wait. They land in the live market instantly.
+          </Text>
+          <View style={styles.zeroFrictionSteps}>
+            <Step n={1} title="They tap your link" body="Opens in Safari / Chrome — nothing to install." />
+            <Step n={2} title="Pick a handle" body="One field, no email, no password. They’re trading in 10 seconds." />
+            <Step n={3} title="You both earn" body={`+${REFERRAL_BONUS_INVITEE.toLocaleString()} pts for them, +${REFERRAL_BONUS_INVITER.toLocaleString()} pts for you, automatic.`} />
+          </View>
+        </View>
+
         <View style={styles.expoCard} testID="invite-expo-instructions">
           <View style={styles.expoHeader}>
             <View style={styles.expoIcon}>
               <Smartphone size={18} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.expoEyebrow}>HOW YOUR FRIENDS DOWNLOAD</Text>
-              <Text style={styles.expoTitle}>Tort Site runs inside Expo Go</Text>
+              <Text style={styles.expoEyebrow}>OPTIONAL · NATIVE APP FEEL</Text>
+              <Text style={styles.expoTitle}>Want the full native experience?</Text>
             </View>
           </View>
           <Text style={styles.expoBody}>
-            We’re in pre-TestFlight mode. Friends install the free Expo Go app once — then your invite link opens Tort Site instantly inside it. No App Store listing needed.
+            Power users can install the free Expo Go app to run Tort Site as a native app with haptics and full performance. Totally optional — the web version has every feature.
           </Text>
-
-          <View style={styles.expoSteps}>
-            <Step n={1} title="Install Expo Go" body="Free app on the App Store or Google Play. ~30 sec download." />
-            <Step n={2} title="Tap your invite link on phone" body="It auto-opens Tort Site inside Expo Go — no account or login needed." />
-            <Step n={3} title="Play live" body={`They sign up, get +${REFERRAL_BONUS_INVITEE.toLocaleString()} pts, and you earn +${REFERRAL_BONUS_INVITER.toLocaleString()} pts.`} />
-          </View>
 
           <View style={styles.expoStoreRow}>
             <Pressable
@@ -379,10 +389,6 @@ export default function InviteScreen(): React.ReactElement {
               <Download size={14} color="rgba(255,255,255,0.7)" />
             </Pressable>
           </View>
-
-          <Text style={styles.expoNote}>
-            Tip: send the invite via Messages or WhatsApp so the link opens directly on their phone. Tapping the link on a phone with Expo Go installed launches Tort Site in one step.
-          </Text>
         </View>
 
         <View style={styles.howRow}>
@@ -607,6 +613,24 @@ const styles = StyleSheet.create({
     color: Colors.textMuted, fontSize: 11.5, fontWeight: "600",
     marginTop: 12, lineHeight: 16,
   },
+
+  zeroFrictionCard: {
+    marginTop: 22,
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1, borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  zeroFrictionBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: Colors.emerald,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
+  },
+  zeroFrictionBadgeText: { color: "#0B1220", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  zeroFrictionTitle: { color: Colors.text, fontSize: 18, fontWeight: "900", marginTop: 10, letterSpacing: -0.3 },
+  zeroFrictionBody: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: "600", marginTop: 6, lineHeight: 18 },
+  zeroFrictionSteps: { marginTop: 6 },
 
   legal: {
     flexDirection: "row", gap: 6, alignItems: "flex-start",
