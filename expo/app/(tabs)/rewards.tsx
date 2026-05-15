@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Briefcase, Car, Gift, Laptop, Lock, Plane, Sparkles } from "lucide-react-native";
+import { Briefcase, Car, Gift, Laptop, Lock, Plane, Settings, Sparkles } from "lucide-react-native";
+import { useRouter } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { REWARDS } from "@/mocks/rewards";
 import { useApp } from "@/providers/AppProvider";
@@ -22,6 +23,7 @@ const TIERS: { key: TierKey; label: string; icon: React.ReactNode }[] = [
 export default function RewardsScreen(): React.ReactElement {
   const [tier, setTier] = useState<TierKey>("all");
   const { user, redeemReward } = useApp();
+  const router = useRouter();
 
   const filtered = useMemo(() => {
     if (tier === "all") return REWARDS;
@@ -72,6 +74,15 @@ export default function RewardsScreen(): React.ReactElement {
   return (
     <View style={styles.wrap}>
       <BalanceHeader subtitle="Sponsored perks from top mass-tort firms" />
+
+      <Pressable
+        onPress={() => router.push("/admin")}
+        style={styles.adminLink}
+        testID="open-sponsor-admin"
+      >
+        <Settings size={12} color={Colors.textSecondary} />
+        <Text style={styles.adminLinkText}>Sponsor admin</Text>
+      </Pressable>
 
       <SponsorSlot tier="banner" label="Rewards top banner" />
 
@@ -190,6 +201,26 @@ export default function RewardsScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: Colors.bg },
+  adminLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 12,
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  adminLinkText: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   tierRow: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
   tierPill: {
     flexDirection: "row", alignItems: "center", gap: 6,

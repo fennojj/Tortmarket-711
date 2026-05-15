@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -26,6 +27,9 @@ import {
   Megaphone,
   Share2,
   Copy,
+  Zap,
+  Link2,
+  CheckCircle2,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { Colors } from "@/constants/colors";
@@ -35,7 +39,7 @@ import { useSponsorUpdates } from "@/providers/SponsorUpdatesProvider";
 import SponsorSlot from "@/components/SponsorSlot";
 import type { SponsorSlotTier } from "@/constants/sponsors";
 
-type AdminTab = "sponsors" | "updates" | "pitch";
+type AdminTab = "sponsors" | "updates" | "pitch" | "integrations";
 
 const TIERS: SponsorSlotTier[] = [
   "banner",
@@ -79,7 +83,11 @@ export default function AdminScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const initialTab: AdminTab =
-    params.tab === "updates" || params.tab === "pitch" ? params.tab : "sponsors";
+    params.tab === "updates" ||
+    params.tab === "pitch" ||
+    params.tab === "integrations"
+      ? params.tab
+      : "sponsors";
   const [tab, setTab] = useState<AdminTab>(initialTab);
 
   return (
@@ -90,10 +98,12 @@ export default function AdminScreen(): React.ReactElement {
           <TabPill label="Sponsors" active={tab === "sponsors"} onPress={() => setTab("sponsors")} />
           <TabPill label="Updates" active={tab === "updates"} onPress={() => setTab("updates")} />
           <TabPill label="Pitch" active={tab === "pitch"} onPress={() => setTab("pitch")} />
+          <TabPill label="Integrations" active={tab === "integrations"} onPress={() => setTab("integrations")} />
         </View>
         {tab === "sponsors" && <SponsorsTab onDone={() => router.back()} />}
         {tab === "updates" && <UpdatesTab />}
         {tab === "pitch" && <PitchTab />}
+        {tab === "integrations" && <IntegrationsTab />}
       </View>
     </>
   );
@@ -563,6 +573,231 @@ function PitchTab() {
         </View>
       ))}
     </ScrollView>
+  );
+}
+
+// ─── INTEGRATIONS TAB ───────────────────────────────────────────────────────
+const GHL_KEY = "tortmarket.integrations.ghl.v1";
+
+type GhlConfig = {
+  enabled: boolean;
+  webhookUrl: string;
+  apiKey: string;
+  locationId: string;
+  contactTag: string;
+  lastSyncedAt?: string;
+};
+
+const DEFAULT_GHL: GhlConfig = {
+  enabled: false,
+  webhookUrl: "",
+  apiKey: "",
+  locationId: "",
+  contactTag: "tort-market-sponsor",
+};
+
+function IntegrationsTab() {
+  const [cfg, setCfg] = useState<GhlConfig>(DEFAULT_GHL);
+  const [hydrated, setHydrated] = useState<boolean>(false);
+  const [testing, setTesting] = useState<boolean>(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(GHL_KEY)
+      .then((raw) => {
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as GhlConfig;
+            setCfg({ ...DEFAULT_GHL, ...parsed });
+          } catch (e) {
+            console.log("[GHL] parse error", e);
+          }
+        }
+        setHydrated(true);
+      })
+      .catch(() => setHydrated(true));
+  }, []);
+
+  const persist = async (next: GhlConfig) => {
+    setCfg(next);
+    try {
+      await AsyncStorage.setItem(GHL_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.log("[GHL] save error", e);
+    }
+  };
+
+  const update = <K extends keyof GhlConfig>(key: K, value: GhlConfig[K]) => {
+    persist({ ...cfg, [key]: value });
+  };
+
+  const onTest = async () => {
+    if (!cfg.webhookUrl.trim()) {
+      Alert.alert("Add webhook URL", "Paste your Go High Level inbound webhook URL first.");
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await fetch(cfg.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "tort-market",
+          event: "integration.test",
+          tag: cfg.contactTag || undefined,
+          locationId: cfg.locationId || undefined,
+          sentAt: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        Alert.alert("Test failed", `Webhook responded ${res.status}`);
+      } else {
+        await persist({ ...cfg, lastSyncedAt: new Date().toISOString() });
+        Alert.alert("Test sent", "Check your GHL workflow for the test payload.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      Alert.alert("Test failed", msg);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const onReset = () => {
+    Alert.alert("Reset integration?", "Clears webhook + API key locally.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reset",
+        style: "destructive",
+        onPress: () => persist(DEFAULT_GHL),
+      },
+    ]);
+  };
+
+  if (!hydrated) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.sectionHint}>Loading…</Text>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={80}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.statusCard}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Zap size={14} color={Colors.orange} />
+            <Text style={styles.statusTitle}>Go High Level</Text>
+          </View>
+          <Text style={styles.sectionHint}>
+            Pipe sponsor leads, invites, and engagement events into your GHL workflows.
+            Configure here, automate over there.
+          </Text>
+          <Row
+            label="Status"
+            value={cfg.enabled && cfg.webhookUrl ? "CONNECTED" : "not connected"}
+            accent={cfg.enabled && cfg.webhookUrl ? Colors.emerald : Colors.textMuted}
+          />
+          {cfg.lastSyncedAt ? (
+            <Row
+              label="Last test"
+              value={new Date(cfg.lastSyncedAt).toLocaleString()}
+              small
+            />
+          ) : null}
+          <View style={styles.toggleRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <CheckCircle2
+                size={14}
+                color={cfg.enabled ? Colors.emerald : Colors.textMuted}
+              />
+              <Text style={styles.toggleLabel}>Enable GHL sync</Text>
+            </View>
+            <Switch
+              value={cfg.enabled}
+              onValueChange={(v) => update("enabled", v)}
+              testID="ghl-enabled"
+            />
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Connection</Text>
+        <Text style={styles.sectionHint}>
+          In GHL → Automation → Workflows, create an Inbound Webhook trigger and paste the URL
+          here. API key + Location ID are optional for v1 (used later for contact lookups).
+        </Text>
+
+        <Field
+          label="Inbound webhook URL *"
+          value={cfg.webhookUrl}
+          onChange={(v) => update("webhookUrl", v)}
+          placeholder="https://services.leadconnectorhq.com/hooks/..."
+        />
+        <Field
+          label="Location ID"
+          value={cfg.locationId}
+          onChange={(v) => update("locationId", v)}
+          placeholder="loc_abc123"
+        />
+        <Field
+          label="API key (private)"
+          value={cfg.apiKey}
+          onChange={(v) => update("apiKey", v)}
+          placeholder="eyJhbGciOi... (stored locally only)"
+        />
+        <Field
+          label="Default contact tag"
+          value={cfg.contactTag}
+          onChange={(v) => update("contactTag", v)}
+          placeholder="tort-market-sponsor"
+        />
+
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.btn, styles.btnPrimary, testing && { opacity: 0.6 }]}
+            onPress={onTest}
+            disabled={testing}
+            testID="ghl-test"
+          >
+            <Link2 size={14} color="#fff" />
+            <Text style={styles.btnText}>{testing ? "Sending…" : "Send test event"}</Text>
+          </Pressable>
+          <Pressable style={[styles.btn, styles.btnDanger]} onPress={onReset}>
+            <Trash2 size={14} color="#fff" />
+            <Text style={styles.btnText}>Reset</Text>
+          </Pressable>
+        </View>
+
+        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>What gets synced</Text>
+        <Text style={styles.sectionHint}>
+          Once connected, Tort Market will POST these events to your webhook so GHL can route
+          them to pipelines, SMS, or email sequences.
+        </Text>
+        {[
+          "sponsor.lead — pitch shared / sponsor inquiry",
+          "sponsor.update.posted — new announcement in feed",
+          "invite.sent — user shares referral link",
+          "invite.accepted — referral signs up",
+          "reward.redeemed — points cashed for a perk",
+        ].map((e) => (
+          <View key={e} style={styles.rateRow}>
+            <Text style={styles.rateName} numberOfLines={1}>
+              {e}
+            </Text>
+          </View>
+        ))}
+
+        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Roadmap</Text>
+        <Text style={styles.sectionHint}>
+          v2 will add two-way sync (pull contact lists, push sponsor proposals), plus Zapier
+          and Make fallbacks. Want it sooner? Ping the agent and we will prioritize.
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
