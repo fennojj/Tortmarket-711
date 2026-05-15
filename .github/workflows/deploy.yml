@@ -55,10 +55,13 @@ jobs:
           EXPO_PUBLIC_TOOLKIT_URL: ${{ secrets.EXPO_PUBLIC_TOOLKIT_URL }}
 
       - name: Add CNAME for custom domain
-        run: echo "tortmarket.com" > expo/dist/CNAME
+        run: echo "tortmarket.com" > dist/CNAME
 
       - name: Add SPA 404 fallback
-        run: cp expo/dist/index.html expo/dist/404.html
+        run: cp dist/index.html dist/404.html
+
+      - name: Disable Jekyll processing
+        run: touch dist/.nojekyll
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
