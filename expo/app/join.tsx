@@ -1,11 +1,14 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -19,10 +22,21 @@ import {
   normalizeRefCode,
 } from "@/utils/referrals";
 
+function isValidEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+function autoHandleFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const clean = local.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 14);
+  if (clean.length >= 2) return clean.toLowerCase();
+  return `tort-${Math.floor(Math.random() * 9999)}`;
+}
+
 export default function JoinScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ ref?: string }>();
-  const { user, pendingRef, applyPendingRef } = useApp();
+  const { user, pendingRef, applyPendingRef, registerUser } = useApp();
 
   const incomingCode = useMemo(
     () => normalizeRefCode(typeof params.ref === "string" ? params.ref : null),
@@ -30,6 +44,11 @@ export default function JoinScreen(): React.ReactElement {
   );
 
   const code = incomingCode ?? pendingRef ?? null;
+  const isReturning = !!user.handle && user.onboarded === true;
+
+  const [email, setEmail] = useState<string>("");
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
   const fade = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(28)).current;
@@ -61,14 +80,43 @@ export default function JoinScreen(): React.ReactElement {
   }, [incomingCode, applyPendingRef]);
 
   const onClaim = () => {
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    if (isReturning) {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      router.replace("/(tabs)");
+      return;
     }
-    router.replace("/(tabs)");
+
+    const trimmed = email.trim();
+    if (!isValidEmail(trimmed)) {
+      setError("Enter a valid email to claim your bonus.");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      }
+      return;
+    }
+    setError("");
+    setSubmitting(true);
+    try {
+      registerUser({
+        handle: autoHandleFromEmail(trimmed),
+        email: trimmed,
+        source: code ? "referral" : "join-link",
+        referredBy: code ?? undefined,
+      });
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      router.replace("/(tabs)");
+    } catch (e) {
+      console.log("[Join] register error", e);
+      setSubmitting(false);
+      setError("Something went wrong. Tap again.");
+    }
   };
 
   const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  const isReturning = !!user.handle && user.handle.length > 0;
 
   return (
     <View style={styles.wrap} testID="join-screen">
@@ -80,51 +128,88 @@ export default function JoinScreen(): React.ReactElement {
         style={StyleSheet.absoluteFill}
       />
 
-      <Animated.View
-        style={[styles.content, { opacity: fade, transform: [{ translateY: lift }] }]}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Animated.View style={[styles.giftBubble, { transform: [{ scale: pulseScale }] }]}>
-          <Gift size={42} color="#fff" />
-        </Animated.View>
+        <Animated.View
+          style={[styles.content, { opacity: fade, transform: [{ translateY: lift }] }]}
+        >
+          <Animated.View style={[styles.giftBubble, { transform: [{ scale: pulseScale }] }]}>
+            <Gift size={42} color="#fff" />
+          </Animated.View>
 
-        <View style={styles.eyebrowPill}>
-          <Sparkles size={11} color="#FDE68A" />
-          <Text style={styles.eyebrowText}>YOU&apos;VE BEEN GIFTED</Text>
-        </View>
-
-        <Text style={styles.title}>
-          +{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points
-        </Text>
-        <Text style={styles.subtitle}>
-          A friend invited you to Tort Market — the prediction market for mass tort cases.
-          Their gift stacks on top of your 25,000 welcome bonus.
-        </Text>
-
-        {code ? (
-          <View style={styles.codeChip} testID="join-code-chip">
-            <Text style={styles.codeChipLabel}>INVITE CODE</Text>
-            <Text style={styles.codeChipValue}>{code}</Text>
+          <View style={styles.eyebrowPill}>
+            <Sparkles size={11} color="#FDE68A" />
+            <Text style={styles.eyebrowText}>YOU&apos;VE BEEN GIFTED</Text>
           </View>
-        ) : null}
 
-        <View style={styles.statsRow}>
-          <Stat icon={<Zap size={14} color="#FDE68A" />} value="30,000" label="total points" />
-          <View style={styles.statDivider} />
-          <Stat icon={<Trophy size={14} color="#FDE68A" />} value="70+" label="live markets" />
-          <View style={styles.statDivider} />
-          <Stat icon={<Users size={14} color="#fff" />} value="1.2K+" label="traders" />
-        </View>
-
-        <Pressable onPress={onClaim} style={styles.cta} testID="join-claim">
-          <Text style={styles.ctaText}>
-            {isReturning ? "Open Tort Market" : "Claim my bonus →"}
+          <Text style={styles.title}>
+            +{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points
           </Text>
-        </Pressable>
+          <Text style={styles.subtitle}>
+            A friend invited you to Tort Market — the prediction market for mass tort cases.
+            Their gift stacks on top of your 25,000 welcome bonus.
+          </Text>
 
-        <Text style={styles.legal}>
-          Proof of concept · simulated points, no real money.
-        </Text>
-      </Animated.View>
+          {code ? (
+            <View style={styles.codeChip} testID="join-code-chip">
+              <Text style={styles.codeChipLabel}>INVITE CODE</Text>
+              <Text style={styles.codeChipValue}>{code}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.statsRow}>
+            <Stat icon={<Zap size={14} color="#FDE68A" />} value="30,000" label="total points" />
+            <View style={styles.statDivider} />
+            <Stat icon={<Trophy size={14} color="#FDE68A" />} value="70+" label="live markets" />
+            <View style={styles.statDivider} />
+            <Stat icon={<Users size={14} color="#fff" />} value="1.2K+" label="traders" />
+          </View>
+
+          {!isReturning ? (
+            <TextInput
+              value={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (error) setError("");
+              }}
+              placeholder="you@email.com"
+              placeholderTextColor="rgba(255,255,255,0.55)"
+              style={styles.emailInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              keyboardType="email-address"
+              returnKeyType="go"
+              onSubmitEditing={onClaim}
+              testID="join-email"
+            />
+          ) : null}
+
+          {error ? <Text style={styles.errText}>{error}</Text> : null}
+
+          <Pressable
+            onPress={onClaim}
+            disabled={submitting}
+            style={[styles.cta, submitting && styles.ctaDisabled]}
+            testID="join-claim"
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.ctaText}>
+                {isReturning ? "Open Tort Market" : "Claim my bonus →"}
+              </Text>
+            )}
+          </Pressable>
+
+          <Text style={styles.legal}>
+            By continuing you confirm you&apos;re 18+ and accept the Terms & Privacy.
+            Simulated points, no real money.
+          </Text>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -227,7 +312,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 26,
+    marginTop: 22,
     backgroundColor: "rgba(0,0,0,0.28)",
     borderRadius: 16,
     padding: 14,
@@ -242,8 +327,28 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.5,
   },
+  emailInput: {
+    alignSelf: "stretch",
+    marginTop: 20,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.28)",
+    paddingHorizontal: 18,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  errText: {
+    color: "#FCA5A5",
+    fontSize: 12.5,
+    fontWeight: "700",
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
   cta: {
-    marginTop: 28,
+    marginTop: 14,
     alignSelf: "stretch",
     height: 56,
     borderRadius: 18,
@@ -251,6 +356,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  ctaDisabled: { opacity: 0.6 },
   ctaText: { color: "#fff", fontSize: 16, fontWeight: "900", letterSpacing: 0.3 },
   legal: {
     color: "rgba(255,255,255,0.55)",
@@ -258,5 +364,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 14,
     textAlign: "center",
+    paddingHorizontal: 6,
+    lineHeight: 16,
   },
 });

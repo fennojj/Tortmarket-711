@@ -14,19 +14,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
-import { CheckSquare, Square, Gavel, Sparkles, ShieldCheck, X, TrendingUp, Trophy, Zap, Users, Gift } from "lucide-react-native";
+import { Gavel, Sparkles, ShieldCheck, X, TrendingUp, Trophy, Zap, Users, Gift } from "lucide-react-native";
 import { REFERRAL_BONUS_INVITEE } from "@/utils/referrals";
 
 const PRIVACY_URL = "https://tort-market.com/privacy";
 const TERMS_URL = "https://tort-market.com/terms";
 
-const SOURCES = [
-  { id: "tortcast", label: "TortCast" },
-  { id: "reddit", label: "Reddit" },
-  { id: "x", label: "X / Twitter" },
-  { id: "friend", label: "Friend" },
-  { id: "other", label: "Other" },
-];
+function autoHandleFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const clean = local.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 14);
+  if (clean.length >= 2) return clean.toLowerCase();
+  return `tort-${Math.floor(Math.random() * 9999)}`;
+}
 
 const MEMBER_COUNT = 1247;
 const ACTIVE_NOW = 94;
@@ -122,10 +121,7 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
-  const [handle, setHandle] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [source, setSource] = useState<string>("tortcast");
-  const [ageConfirmed, setAgeConfirmed] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
@@ -136,12 +132,15 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
   }, [fadeAnim, slideAnim]);
 
   const onJoin = () => {
-    const h = handle.trim();
-    if (h.length < 2) return setError("Pick a handle (2+ characters).");
-    if (!isValidEmail(email)) return setError("Enter a valid email.");
-    if (!ageConfirmed) return setError("You must confirm you are 18 or older to continue.");
+    const trimmed = email.trim();
+    if (!isValidEmail(trimmed)) return setError("Enter a valid email.");
     setError("");
-    registerUser({ handle: h, email, source: pendingRef ? "referral" : source, referredBy: pendingRef ?? undefined });
+    registerUser({
+      handle: autoHandleFromEmail(trimmed),
+      email: trimmed,
+      source: pendingRef ? "referral" : "onboarding",
+      referredBy: pendingRef ?? undefined,
+    });
   };
 
   const skip = () => {
@@ -169,9 +168,9 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
         <Text style={styles.pocText}>STEP 2 OF 2 · REGISTER</Text>
       </View>
 
-      <Text style={styles.title}>Pick your handle</Text>
+      <Text style={styles.title}>One last step</Text>
       <Text style={styles.subtitle}>
-        Your 25,000 welcome bonus unlocks the moment you join. No credit card, no commitment.
+        Just your email. Your 25,000 welcome bonus drops instantly. No password, no credit card.
       </Text>
 
       {pendingRef ? (
@@ -186,65 +185,28 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
         </View>
       ) : null}
 
-      <Text style={styles.label}>Handle</Text>
-      <TextInput
-        value={handle}
-        onChangeText={setHandle}
-        placeholder="yourhandle"
-        placeholderTextColor={Colors.textMuted}
-        style={styles.input}
-        autoCapitalize="none"
-        autoCorrect={false}
-        testID="onboarding-handle"
-      />
-
       <Text style={styles.label}>Email</Text>
       <TextInput
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(t) => { setEmail(t); if (error) setError(""); }}
         placeholder="you@email.com"
         placeholderTextColor={Colors.textMuted}
         style={styles.input}
         autoCapitalize="none"
         autoCorrect={false}
+        autoComplete="email"
         keyboardType="email-address"
+        returnKeyType="go"
+        onSubmitEditing={onJoin}
+        autoFocus
         testID="onboarding-email"
       />
-
-      <Text style={styles.label}>How did you find us?</Text>
-      <View style={styles.sourceRow}>
-        {SOURCES.map((s) => {
-          const active = source === s.id;
-          return (
-            <Pressable
-              key={s.id}
-              onPress={() => setSource(s.id)}
-              style={[styles.sourcePill, active && styles.sourcePillActive]}
-              testID={`onboarding-source-${s.id}`}
-            >
-              <Text style={[styles.sourceText, active && styles.sourceTextActive]}>{s.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Age gate */}
-      <Pressable
-        onPress={() => setAgeConfirmed((v) => !v)}
-        style={styles.ageRow}
-        testID="onboarding-age-gate"
-      >
-        {ageConfirmed
-          ? <CheckSquare size={18} color={Colors.emerald} />
-          : <Square size={18} color={Colors.textMuted} />}
-        <Text style={styles.ageText}>I confirm I am 18 years of age or older</Text>
-      </Pressable>
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
 
       <Pressable
         onPress={onJoin}
-        style={[styles.cta, !ageConfirmed && styles.ctaDisabled]}
+        style={styles.cta}
         testID="onboarding-submit"
       >
         <Sparkles size={15} color="#fff" />
@@ -254,17 +216,17 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
       <View style={styles.privacyRow}>
         <ShieldCheck size={12} color={Colors.textMuted} />
         <Text style={styles.privacy}>
-          Email used only to contact beta participants. Unsubscribe anytime.
+          By continuing you confirm you&apos;re 18+ and accept the Terms & Privacy. Unsubscribe anytime.
         </Text>
       </View>
 
       <View style={styles.legalRow}>
         <Pressable onPress={() => Linking.openURL(TERMS_URL)} hitSlop={8}>
-          <Text style={styles.legalLink}>Terms of Service</Text>
+          <Text style={styles.legalLink}>Terms</Text>
         </Pressable>
         <Text style={styles.legalSep}>·</Text>
         <Pressable onPress={() => Linking.openURL(PRIVACY_URL)} hitSlop={8}>
-          <Text style={styles.legalLink}>Privacy Policy</Text>
+          <Text style={styles.legalLink}>Privacy</Text>
         </Pressable>
         <Text style={styles.legalSep}>·</Text>
         <Text style={styles.legalNote}>Play-money only · No cash value</Text>
