@@ -125,7 +125,7 @@ export const CONFERENCE: ConferenceConfig = {
   titleSponsor: {
     id: "title-1",
     name: "Your Title Sponsor",
-    tagline: "Presenting Sponsor of the Tort Site Live Leaderboard",
+    tagline: "Presenting Sponsor of the Tort Market Live Leaderboard",
     url: undefined,
   },
 

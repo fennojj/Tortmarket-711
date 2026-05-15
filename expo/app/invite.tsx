@@ -93,7 +93,7 @@ export default function InviteScreen(): React.ReactElement {
           share?: (data: { title?: string; text?: string; url?: string }) => Promise<void>;
         };
         if (nav.share) {
-          await nav.share({ title: "Tort Site", text: message, url });
+          await nav.share({ title: "Tort Market", text: message, url });
         } else {
           await Clipboard.setStringAsync(message);
           setCopied(true);
@@ -129,7 +129,7 @@ export default function InviteScreen(): React.ReactElement {
 
   const encodedMsg = useMemo(() => encodeURIComponent(message), [message]);
   const encodedUrl = useMemo(() => encodeURIComponent(url), [url]);
-  const encodedSubject = useMemo(() => encodeURIComponent("Join me on Tort Site"), []);
+  const encodedSubject = useMemo(() => encodeURIComponent("Join me on Tort Market"), []);
 
   const channels = useMemo(() => {
     const smsSep = Platform.OS === "ios" ? "&" : "?";
@@ -340,7 +340,7 @@ export default function InviteScreen(): React.ReactElement {
           </View>
           <Text style={styles.zeroFrictionTitle}>Friends just tap the link.</Text>
           <Text style={styles.zeroFrictionBody}>
-            The invite opens Tort Site directly in their browser — no app install, no Expo Go, no App Store wait. They land in the live market instantly.
+            The invite opens Tort Market directly in their browser — no app install, no Expo Go, no App Store wait. They land in the live market instantly.
           </Text>
           <View style={styles.zeroFrictionSteps}>
             <Step n={1} title="They tap your link" body="Opens in Safari / Chrome — nothing to install." />
@@ -360,7 +360,7 @@ export default function InviteScreen(): React.ReactElement {
             </View>
           </View>
           <Text style={styles.expoBody}>
-            Power users can install the free Expo Go app to run Tort Site as a native app with haptics and full performance. Totally optional — the web version has every feature.
+            Power users can install the free Expo Go app to run Tort Market as a native app with haptics and full performance. Totally optional — the web version has every feature.
           </Text>
 
           <View style={styles.expoStoreRow}>

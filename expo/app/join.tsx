@@ -96,7 +96,7 @@ export default function JoinScreen(): React.ReactElement {
           +{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points
         </Text>
         <Text style={styles.subtitle}>
-          A friend invited you to Tort Site — the prediction market for mass tort cases.
+          A friend invited you to Tort Market — the prediction market for mass tort cases.
           Their gift stacks on top of your 25,000 welcome bonus.
         </Text>
 
@@ -117,7 +117,7 @@ export default function JoinScreen(): React.ReactElement {
 
         <Pressable onPress={onClaim} style={styles.cta} testID="join-claim">
           <Text style={styles.ctaText}>
-            {isReturning ? "Open Tort Site" : "Claim my bonus →"}
+            {isReturning ? "Open Tort Market" : "Claim my bonus →"}
           </Text>
         </Pressable>
 

@@ -2,7 +2,7 @@
   "$schema": "https://rork.com/schema/rork.json",
   "apps": [
     {
-      "name": "Tort Site",
+      "name": "Tort Market",
       "path": "expo",
       "framework": "react-native"
     }

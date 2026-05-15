@@ -23,15 +23,11 @@ export function normalizeRefCode(raw: string | null | undefined): string | null 
 }
 
 /**
- * Public web invite URL. Points at the project's friendly Rork subdomain,
- * which serves the SPA and runs the same React Native code on the web. The
- * home screen reads ?ref=… and redirects into /join.
- *
- * We intentionally use the friendly slug (tort-market.rork.app) rather than
- * the raw project-id subdomain — testers reported the project-id URL was
- * inconsistent / didn't open for some recipients.
+ * Public web invite URL. Points at the production Tort Market domain, which
+ * serves the SPA and runs the same React Native code on the web. The home
+ * screen reads ?ref=… and redirects into /join.
  */
-export const INVITE_WEB_HOST = "https://tort-market.rork.app";
+export const INVITE_WEB_HOST = "https://tortmarket.com";
 
 export function getInviteUrl(code: string): string {
   return `${INVITE_WEB_HOST}?ref=${encodeURIComponent(code)}`;
@@ -51,7 +47,7 @@ export const EXPO_GO_ANDROID_URL = "https://play.google.com/store/apps/details?i
 export function getInviteMessage(code: string, handle: string): string {
   const url = getInviteUrl(code);
   return [
-    `${handle} invited you to Tort Site — the prediction market for mass tort cases.`,
+    `${handle} invited you to Tort Market — the prediction market for mass tort cases.`,
     "",
     `Tap the link, claim ${REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points, and trade 70+ live MDL cases (Roundup, PFAS, Depo-Provera, Camp Lejeune, more). No install, no signup wall — opens straight in your browser.`,
     "",

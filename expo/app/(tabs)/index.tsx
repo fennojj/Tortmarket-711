@@ -188,7 +188,7 @@ export default function MarketsScreen(): React.ReactElement {
             <View style={styles.titleRow}>
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.appName}>Tort Site</Text>
+                  <Text style={styles.appName}>Tort Market</Text>
                   <View style={styles.betaPill}>
                     <Text style={styles.betaText}>POC BETA</Text>
                   </View>

@@ -495,9 +495,9 @@ function UpdatesTab() {
 function PitchTab() {
   const pitchText = useMemo(() => {
     const lines = [
-      "Tort Site — Sponsorship Opportunities",
+      "Tort Market — Sponsorship Opportunities",
       "",
-      "Reach mass-tort attorneys where they make decisions. Tort Site is a daily-use",
+      "Reach mass-tort attorneys where they make decisions. Tort Market is a daily-use",
       "intelligence + prediction-market app for plaintiff lawyers, conference attendees,",
       "and case investors. Sponsors get persistent placement, native cards, and",
       "dedicated announcements in the Sponsor Updates feed.",

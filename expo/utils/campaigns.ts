@@ -187,7 +187,7 @@ export function buildWinnerCampaign(args: {
       },
       {
         channel: "email",
-        body: `A new leader emerged on ${caseName}: ${handle} — ${fmt(points)} pts. Open Tort Site to see the full board.`,
+        body: `A new leader emerged on ${caseName}: ${handle} — ${fmt(points)} pts. Open Tort Market to see the full board.`,
       },
     ],
     cta: { label: "See leaderboard", route: "/(tabs)/leaderboard" },
@@ -277,7 +277,7 @@ export function buildDailyRecapCampaign(args: {
   totalPlays: number;
 }): Campaign {
   const { topPlay, topMarket, totalPlays } = args;
-  const headline = `Tort Site daily recap · ${totalPlays} plays on the tape`;
+  const headline = `Tort Market daily recap · ${totalPlays} plays on the tape`;
   const tagline = topMarket
     ? `${topMarket.caseName} led the board at YES ${topMarket.yesPrice}¢.${topPlay ? ` ${topPlay.author} took the biggest swing.` : ""}`
     : `Another full session in the books.`;
@@ -297,7 +297,7 @@ export function buildDailyRecapCampaign(args: {
       },
       {
         channel: "reddit",
-        body: `Daily wrap — ${totalPlays} plays routed through Tort Site today.${topMarket ? ` Mover of the day: ${topMarket.caseName}.` : ""}`,
+        body: `Daily wrap — ${totalPlays} plays routed through Tort Market today.${topMarket ? ` Mover of the day: ${topMarket.caseName}.` : ""}`,
       },
       {
         channel: "discord",
@@ -335,7 +335,7 @@ export function buildOnboardingCampaign(handle: string): Campaign {
       },
       {
         channel: "email",
-        body: `Welcome to the Tort Site POC, ${handle}. Your 25,000 starter points are live. Claim, place your first play, and we'll guide the rest.`,
+        body: `Welcome to the Tort Market POC, ${handle}. Your 25,000 starter points are live. Claim, place your first play, and we'll guide the rest.`,
       },
     ],
     cta: { label: "Open coach", route: "/(tabs)/coach" },
