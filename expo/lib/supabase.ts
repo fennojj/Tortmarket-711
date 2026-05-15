@@ -46,6 +46,11 @@ import { createClient } from "@supabase/supabase-js";
  *     on public.signups for insert with check (true);
  *   create policy "anyone can read signups"
  *     on public.signups for select using (true);
+ *
+ *   -- A/B test column (run once):
+ *   alter table public.signups add column if not exists variant text;
+ *   create index if not exists signups_variant_idx
+ *     on public.signups (campaign, variant);
  */
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
@@ -138,6 +143,7 @@ export interface SignupRow {
   source: string | null;
   platform: string | null;
   campaign: string | null;
+  variant: string | null;
   created_at: string;
 }
 
@@ -149,6 +155,7 @@ export async function recordSignup(args: {
   source: string | null;
   platform: string | null;
   campaign?: string | null;
+  variant?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: "supabase-disabled" };
   try {
@@ -160,6 +167,7 @@ export async function recordSignup(args: {
       source: args.source,
       platform: args.platform,
       campaign: args.campaign ?? "launch-5k",
+      variant: args.variant ?? null,
     });
     if (error) {
       // Duplicate email is fine — treat as success so the user is not blocked.
@@ -234,6 +242,43 @@ export async function fetchRecentSignups(
     return (data ?? []) as SignupRow[];
   } catch (e) {
     console.log("[Signups] recent exception", e);
+    return [];
+  }
+}
+
+export interface VariantStat {
+  variant: string;
+  signups: number;
+  referred: number;
+}
+
+export async function fetchVariantStats(
+  campaign: string = "launch-5k",
+): Promise<VariantStat[]> {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from("signups")
+      .select("variant,referred_by")
+      .eq("campaign", campaign)
+      .limit(10000);
+    if (error) {
+      console.log("[Signups] variant stats error", error.message);
+      return [];
+    }
+    const counts = new Map<string, { signups: number; referred: number }>();
+    for (const row of (data ?? []) as { variant: string | null; referred_by: string | null }[]) {
+      const v = row.variant ?? "unknown";
+      const cur = counts.get(v) ?? { signups: 0, referred: 0 };
+      cur.signups += 1;
+      if (row.referred_by) cur.referred += 1;
+      counts.set(v, cur);
+    }
+    return Array.from(counts.entries())
+      .map(([variant, c]) => ({ variant, signups: c.signups, referred: c.referred }))
+      .sort((a, b) => b.signups - a.signups);
+  } catch (e) {
+    console.log("[Signups] variant stats exception", e);
     return [];
   }
 }

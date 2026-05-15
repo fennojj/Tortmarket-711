@@ -272,7 +272,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   }, [persistMutation]);
 
   const registerUser = useCallback(
-    (args: { handle: string; email: string; source?: string; referredBy?: string }) => {
+    (args: { handle: string; email: string; source?: string; referredBy?: string; variant?: string }) => {
       const ref = normalizeRefCode(args.referredBy) ?? pendingRef;
       const isSelfRef = ref && user.referralCode && ref === user.referralCode;
       const appliedRef = isSelfRef ? null : ref;
@@ -321,6 +321,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         referredBy: appliedRef ?? null,
         source: next.source ?? null,
         platform: Platform.OS,
+        variant: args.variant ?? null,
       }).catch((e) => console.log("[Signup] record error", e));
 
       if (appliedRef) {

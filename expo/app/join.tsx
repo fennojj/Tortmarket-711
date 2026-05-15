@@ -21,6 +21,7 @@ import {
   REFERRAL_BONUS_INVITEE,
   normalizeRefCode,
 } from "@/utils/referrals";
+import { getOrAssignJoinVariant, type JoinVariant } from "@/utils/abTest";
 
 function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -35,7 +36,7 @@ function autoHandleFromEmail(email: string): string {
 
 export default function JoinScreen(): React.ReactElement {
   const router = useRouter();
-  const params = useLocalSearchParams<{ ref?: string }>();
+  const params = useLocalSearchParams<{ ref?: string; v?: string }>();
   const { user, pendingRef, applyPendingRef, registerUser } = useApp();
 
   const incomingCode = useMemo(
@@ -46,6 +47,7 @@ export default function JoinScreen(): React.ReactElement {
   const code = incomingCode ?? pendingRef ?? null;
   const isReturning = !!user.handle && user.onboarded === true;
 
+  const [variant, setVariant] = useState<JoinVariant | null>(null);
   const [email, setEmail] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -53,6 +55,16 @@ export default function JoinScreen(): React.ReactElement {
   const fade = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(28)).current;
   const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // ?v=A or ?v=B forces variant for QA, otherwise random 50/50 (persisted).
+    const forced = typeof params.v === "string" ? params.v.toUpperCase() : "";
+    if (forced === "A" || forced === "B") {
+      setVariant(forced as JoinVariant);
+      return;
+    }
+    getOrAssignJoinVariant().then(setVariant).catch(() => setVariant("A"));
+  }, [params.v]);
 
   useEffect(() => {
     Animated.parallel([
@@ -104,7 +116,9 @@ export default function JoinScreen(): React.ReactElement {
         email: trimmed,
         source: code ? "referral" : "join-link",
         referredBy: code ?? undefined,
+        variant: variant ?? undefined,
       });
+      console.log("[Join] submitted", { variant, hasRef: !!code });
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
@@ -118,8 +132,83 @@ export default function JoinScreen(): React.ReactElement {
 
   const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
 
+  // ── Variant B: frictionless one-tap. Minimal copy, no stats grid, instant CTA.
+  if (variant === "B") {
+    return (
+      <View style={styles.wrap} testID="join-screen-b">
+        <Stack.Screen options={{ headerShown: false }} />
+        <LinearGradient
+          colors={["#020617", "#0F172A", "#1D4ED8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Animated.View
+            style={[styles.contentB, { opacity: fade, transform: [{ translateY: lift }] }]}
+          >
+            <Animated.View style={[styles.giftBubbleB, { transform: [{ scale: pulseScale }] }]}>
+              <Gift size={36} color="#FDE68A" />
+            </Animated.View>
+
+            <Text style={styles.titleB}>
+              +{REFERRAL_BONUS_INVITEE.toLocaleString()} pts
+            </Text>
+            <Text style={styles.subtitleB}>
+              Drop your email. Claim instantly.
+            </Text>
+
+            {!isReturning ? (
+              <TextInput
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  if (error) setError("");
+                }}
+                placeholder="you@email.com"
+                placeholderTextColor="rgba(255,255,255,0.55)"
+                style={styles.emailInputB}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                keyboardType="email-address"
+                returnKeyType="go"
+                onSubmitEditing={onClaim}
+                autoFocus
+                testID="join-email"
+              />
+            ) : null}
+
+            {error ? <Text style={styles.errText}>{error}</Text> : null}
+
+            <Pressable
+              onPress={onClaim}
+              disabled={submitting}
+              style={[styles.ctaB, submitting && styles.ctaDisabled]}
+              testID="join-claim"
+            >
+              {submitting ? (
+                <ActivityIndicator color="#0B1220" />
+              ) : (
+                <Text style={styles.ctaTextB}>
+                  {isReturning ? "Open Tort Market" : "Claim instantly"}
+                </Text>
+              )}
+            </Pressable>
+
+            <Text style={styles.legalB}>18+ · Simulated points · No real money</Text>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
+    );
+  }
+
+  // ── Variant A (control): full hero with stats and social proof.
   return (
-    <View style={styles.wrap} testID="join-screen">
+    <View style={styles.wrap} testID="join-screen-a">
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
         colors={["#0B1220", "#1E3A8A", "#2563EB"]}
@@ -241,6 +330,13 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: "center",
   },
+  contentB: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 140,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
   giftBubble: {
     width: 96,
     height: 96,
@@ -251,6 +347,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 22,
+  },
+  giftBubbleB: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: "rgba(250, 204, 21, 0.18)",
+    borderWidth: 1.5,
+    borderColor: "rgba(250, 204, 21, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
   },
   eyebrowPill: {
     flexDirection: "row",
@@ -277,6 +384,13 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: "center",
   },
+  titleB: {
+    color: "#fff",
+    fontSize: 56,
+    fontWeight: "900",
+    letterSpacing: -2,
+    textAlign: "center",
+  },
   subtitle: {
     color: "rgba(255,255,255,0.82)",
     fontSize: 14.5,
@@ -285,6 +399,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
     paddingHorizontal: 4,
+  },
+  subtitleB: {
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 28,
   },
   codeChip: {
     marginTop: 18,
@@ -340,6 +462,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  emailInputB: {
+    alignSelf: "stretch",
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.32)",
+    paddingHorizontal: 22,
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   errText: {
     color: "#FCA5A5",
     fontSize: 12.5,
@@ -356,8 +491,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  ctaB: {
+    marginTop: 14,
+    alignSelf: "stretch",
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: "#FDE68A",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#FDE68A",
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+  },
   ctaDisabled: { opacity: 0.6 },
   ctaText: { color: "#fff", fontSize: 16, fontWeight: "900", letterSpacing: 0.3 },
+  ctaTextB: { color: "#0B1220", fontSize: 18, fontWeight: "900", letterSpacing: 0.3 },
   legal: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 11,
@@ -366,5 +515,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 6,
     lineHeight: 16,
+  },
+  legalB: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 18,
+    textAlign: "center",
   },
 });
