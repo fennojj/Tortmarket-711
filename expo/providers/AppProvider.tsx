@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import { useMarkets } from "@/providers/MarketsProvider";
 import type { AlertItem, Position, User } from "@/types";
 import {
@@ -17,6 +18,7 @@ import {
   fetchUnclaimedReferrals,
   markReferralsClaimed,
   recordReferralSignup,
+  recordSignup,
   supabaseEnabled,
 } from "@/lib/supabase";
 
@@ -311,6 +313,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
         },
         body: `${next.handle} just joined via ${next.source}${appliedRef ? ` (referred by ${appliedRef})` : ""}\nEmail: ${next.email}\nCode: ${next.referralCode}\n${new Date(next.joinedAt!).toLocaleString()}`,
       }).catch((e) => console.log("[Signup] ntfy error", e));
+
+      recordSignup({
+        handle: next.handle,
+        email: next.email ?? null,
+        referralCode: next.referralCode ?? null,
+        referredBy: appliedRef ?? null,
+        source: next.source ?? null,
+        platform: Platform.OS,
+      }).catch((e) => console.log("[Signup] record error", e));
 
       if (appliedRef) {
         recordReferralSignup({

@@ -131,6 +131,233 @@ function TabPill({
   );
 }
 
+// ─── CAMPAIGN TAB ───────────────────────────────────────────────────────────
+function CampaignTab() {
+  const { user } = useApp();
+  const [shareBusy, setShareBusy] = useState<boolean>(false);
+
+  const statsQuery = useQuery({
+    queryKey: ["signup-stats", "launch-5k"],
+    queryFn: () => fetchSignupStats("launch-5k"),
+    enabled: supabaseEnabled,
+    refetchInterval: 15_000,
+  });
+
+  const recentQuery = useQuery({
+    queryKey: ["signup-recent", "launch-5k"],
+    queryFn: () => fetchRecentSignups(50, "launch-5k"),
+    enabled: supabaseEnabled,
+    refetchInterval: 20_000,
+  });
+
+  const topQuery = useQuery({
+    queryKey: ["signup-top", "launch-5k"],
+    queryFn: () => fetchTopInviters(10, "launch-5k"),
+    enabled: supabaseEnabled,
+    refetchInterval: 30_000,
+  });
+
+  const stats = statsQuery.data ?? { total: 0, last24h: 0, last7d: 0, today: 0 };
+  const recent = recentQuery.data ?? [];
+  const top = topQuery.data ?? [];
+
+  const goal = LAUNCH_GOAL;
+  const pct = Math.min(1, stats.total / goal);
+  const remaining = Math.max(0, goal - stats.total);
+  const ratePerHour = stats.last24h / 24;
+  const hoursToGoal = ratePerHour > 0 ? remaining / ratePerHour : null;
+
+  const inviteUrl = user.referralCode ? getInviteUrl(user.referralCode) : "";
+
+  const onShareInvite = async () => {
+    if (!inviteUrl) return;
+    setShareBusy(true);
+    try {
+      await Share.share({
+        message: `Join Tort Market — +5,000 bonus points: ${inviteUrl}`,
+      });
+    } catch (_) {
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const onCopyInvite = async () => {
+    if (!inviteUrl) return;
+    try {
+      await Clipboard.setStringAsync(inviteUrl);
+      Alert.alert("Copied", "Invite link on clipboard.");
+    } catch (_) {}
+  };
+
+  const onExportCsv = async () => {
+    if (recent.length === 0) {
+      Alert.alert("Nothing to export", "No signups yet.");
+      return;
+    }
+    const header = "created_at,handle,email,referral_code,referred_by,source,platform";
+    const lines = recent.map((r: SignupRow) =>
+      [
+        r.created_at,
+        csv(r.handle),
+        csv(r.email ?? ""),
+        csv(r.referral_code ?? ""),
+        csv(r.referred_by ?? ""),
+        csv(r.source ?? ""),
+        csv(r.platform ?? ""),
+      ].join(","),
+    );
+    const out = [header, ...lines].join("\n");
+    try {
+      await Clipboard.setStringAsync(out);
+      Alert.alert("Copied CSV", `${recent.length} rows copied. Paste into Sheets.`);
+    } catch (_) {}
+  };
+
+  if (!supabaseEnabled) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.statusCard}>
+          <Text style={styles.statusTitle}>Campaign not connected</Text>
+          <Text style={styles.sectionHint}>
+            Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to enable live
+            signup tracking, leaderboard, and CSV export.
+          </Text>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.statusCard}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Rocket size={16} color={Colors.orange} />
+          <Text style={styles.statusTitle}>Launch · 5,000 signups</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 6 }}>
+          <Text style={styles.bigCount}>{stats.total.toLocaleString()}</Text>
+          <Text style={styles.bigCountSuffix}>/ {goal.toLocaleString()}</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${Math.round(pct * 100)}%` }]} />
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
+          <Text style={styles.progressMeta}>{(pct * 100).toFixed(1)}% of goal</Text>
+          <Text style={styles.progressMeta}>{remaining.toLocaleString()} to go</Text>
+        </View>
+
+        <View style={styles.statGrid}>
+          <StatTile label="Today" value={stats.today.toLocaleString()} />
+          <StatTile label="24h" value={stats.last24h.toLocaleString()} />
+          <StatTile label="7d" value={stats.last7d.toLocaleString()} />
+          <StatTile
+            label="ETA"
+            value={
+              hoursToGoal === null
+                ? "—"
+                : hoursToGoal < 48
+                ? `${Math.ceil(hoursToGoal)}h`
+                : `${Math.ceil(hoursToGoal / 24)}d`
+            }
+          />
+        </View>
+      </View>
+
+      <View style={styles.statusCard}>
+        <Text style={styles.statusTitle}>Your invite link</Text>
+        <Text style={styles.inviteUrl} numberOfLines={1}>
+          {inviteUrl || "—"}
+        </Text>
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.btn, styles.btnPrimary, shareBusy && { opacity: 0.6 }]}
+            onPress={onShareInvite}
+            disabled={shareBusy || !inviteUrl}
+          >
+            <Share2 size={14} color="#fff" />
+            <Text style={styles.btnText}>Share</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.btn, styles.btnGhost]}
+            onPress={onCopyInvite}
+            disabled={!inviteUrl}
+          >
+            <Copy size={14} color={Colors.text} />
+            <Text style={[styles.btnText, { color: Colors.text }]}>Copy</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <TrendingUp size={14} color={Colors.text} />
+        <Text style={styles.sectionTitle}>Top inviters</Text>
+      </View>
+      {top.length === 0 ? (
+        <Text style={styles.sectionHint}>
+          No referrals yet — share your link to start the flywheel.
+        </Text>
+      ) : (
+        top.map((t, i) => (
+          <View key={t.code} style={styles.rateRow}>
+            <Text style={styles.rateName}>
+              {i + 1}. {t.code}
+            </Text>
+            <Text style={styles.ratePrice}>{t.count} signups</Text>
+          </View>
+        ))
+      )}
+
+      <View style={[styles.sectionHeader, { marginTop: 8 }]}>
+        <Users size={14} color={Colors.text} />
+        <Text style={styles.sectionTitle}>Recent signups</Text>
+        <Pressable onPress={onExportCsv} style={styles.csvBtn} hitSlop={8}>
+          <Download size={12} color={Colors.text} />
+          <Text style={styles.csvText}>CSV</Text>
+        </Pressable>
+      </View>
+      {recent.length === 0 ? (
+        <Text style={styles.sectionHint}>
+          Once people complete the join flow, they show up here in real time.
+        </Text>
+      ) : (
+        recent.slice(0, 25).map((r) => (
+          <View key={r.id} style={styles.signupRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.signupHandle} numberOfLines={1}>
+                {r.handle}
+                {r.referred_by ? (
+                  <Text style={styles.signupRef}>  · via {r.referred_by}</Text>
+                ) : null}
+              </Text>
+              <Text style={styles.signupMeta} numberOfLines={1}>
+                {r.email ?? "no email"} · {r.platform ?? "—"} ·{" "}
+                {new Date(r.created_at).toLocaleTimeString()}
+              </Text>
+            </View>
+          </View>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statTile}>
+      <Text style={styles.statTileValue}>{value}</Text>
+      <Text style={styles.statTileLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function csv(v: string): string {
+  if (v.includes(",") || v.includes("\"") || v.includes("\n")) {
+    return `"${v.replace(/"/g, "\"\"")}"`;
+  }
+  return v;
+}
+
 // ─── SPONSORS TAB ───────────────────────────────────────────────────────────
 function SponsorsTab({ onDone }: { onDone: () => void }) {
   const {
