@@ -18,6 +18,7 @@ import OnboardingModal from "@/components/OnboardingModal";
 import SponsorMapToggle from "@/components/SponsorMapToggle";
 import { Colors } from "@/constants/colors";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import BuildBadge from "@/components/BuildBadge";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -86,6 +87,7 @@ export default function RootLayout() {
                           <RootLayoutNav />
                           <OnboardingModal />
                           <SponsorMapToggle />
+                          <BuildBadge />
                         </SafeAreaProvider>
                       </GestureHandlerRootView>
                     </SponsorMapProvider>
