@@ -89,11 +89,11 @@ export const [SponsorUpdatesProvider, useSponsorUpdates] = createContextHook(() 
       featured: !!input.featured,
       createdAt: new Date().toISOString(),
     };
-    setUpdates((prev) => {
-      const merged = [next, ...prev];
-      persist(merged);
-      return merged;
-    });
+    const existing = await loadAll();
+    const merged = [next, ...existing];
+    await persist(merged);
+    setUpdates(merged);
+    console.log("[SponsorUpdates] posted", next.id, next.sponsorName);
     return next;
   }, []);
 

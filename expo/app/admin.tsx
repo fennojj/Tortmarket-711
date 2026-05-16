@@ -551,6 +551,8 @@ function UpdatesTab() {
   const [url, setUrl] = useState<string>("");
   const [pinned, setPinned] = useState<boolean>(false);
   const [featured, setFeatured] = useState<boolean>(false);
+  const [posting, setPosting] = useState<boolean>(false);
+  const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
 
   const reset = () => {
     setSponsorName("");
@@ -564,22 +566,40 @@ function UpdatesTab() {
   };
 
   const onPost = async () => {
-    if (!sponsorName.trim() || !title.trim() || !body.trim()) {
-      Alert.alert("Missing fields", "Sponsor name, title, and body are required.");
+    const missing: string[] = [];
+    if (!sponsorName.trim()) missing.push("Sponsor name");
+    if (!title.trim()) missing.push("Title");
+    if (!body.trim()) missing.push("Body");
+    if (missing.length > 0) {
+      setStatus({ kind: "err", msg: `Missing: ${missing.join(", ")}` });
       return;
     }
-    await addUpdate({
-      sponsorName,
-      tier,
-      title,
-      body,
-      imageUrl: imageUrl || undefined,
-      url: url || undefined,
-      pinned,
-      featured,
-    });
-    reset();
-    Alert.alert("Posted", "Sponsor update is live in the feed.");
+    try {
+      setPosting(true);
+      setStatus(null);
+      const created = await addUpdate({
+        sponsorName,
+        tier,
+        title,
+        body,
+        imageUrl: imageUrl || undefined,
+        url: url || undefined,
+        pinned,
+        featured,
+      });
+      reset();
+      setStatus({
+        kind: "ok",
+        msg: `Posted \u201C${created.title}\u201D \u2014 opening feed\u2026`,
+      });
+      setTimeout(() => router.push("/sponsor-updates"), 350);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not post update";
+      console.log("[admin] post update failed", msg);
+      setStatus({ kind: "err", msg });
+    } finally {
+      setPosting(false);
+    }
   };
 
   return (
@@ -657,10 +677,26 @@ function UpdatesTab() {
           </View>
         </View>
 
+        {status ? (
+          <View
+            style={[
+              styles.statusBanner,
+              status.kind === "ok" ? styles.statusOk : styles.statusErr,
+            ]}
+          >
+            <Text style={styles.statusText}>{status.msg}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.actionRow}>
-          <Pressable style={[styles.btn, styles.btnPrimary]} onPress={onPost} testID="post-update">
+          <Pressable
+            style={[styles.btn, styles.btnPrimary, posting && { opacity: 0.6 }]}
+            onPress={onPost}
+            disabled={posting}
+            testID="post-update"
+          >
             <Send size={14} color="#fff" />
-            <Text style={styles.btnText}>Post update</Text>
+            <Text style={styles.btnText}>{posting ? "Posting\u2026" : "Post update"}</Text>
           </Pressable>
           <Pressable
             style={[styles.btn, styles.btnGhost]}
@@ -1187,6 +1223,21 @@ const styles = StyleSheet.create({
   error: { color: Colors.red, fontSize: 12, fontWeight: "700" },
 
   actionRow: { flexDirection: "row", gap: 10 },
+  statusBanner: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  statusOk: {
+    backgroundColor: "rgba(34,197,94,0.12)",
+    borderColor: "rgba(34,197,94,0.45)",
+  },
+  statusErr: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderColor: "rgba(239,68,68,0.45)",
+  },
+  statusText: { color: Colors.text, fontSize: 12, fontWeight: "800" },
   btn: {
     flex: 1,
     flexDirection: "row",
