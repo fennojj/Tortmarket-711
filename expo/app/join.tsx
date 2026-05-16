@@ -22,6 +22,7 @@ import {
   normalizeRefCode,
 } from "@/utils/referrals";
 import { getOrAssignJoinVariant, type JoinVariant } from "@/utils/abTest";
+import JoinSponsorReel from "@/components/JoinSponsorReel";
 
 function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -199,6 +200,8 @@ export default function JoinScreen(): React.ReactElement {
               )}
             </Pressable>
 
+            <JoinSponsorReel />
+
             <Text style={styles.legalB}>18+ · Simulated points · No real money</Text>
           </Animated.View>
         </KeyboardAvoidingView>
@@ -292,6 +295,8 @@ export default function JoinScreen(): React.ReactElement {
               </Text>
             )}
           </Pressable>
+
+          <JoinSponsorReel />
 
           <Text style={styles.legal}>
             By continuing you confirm you&apos;re 18+ and accept the Terms & Privacy.
