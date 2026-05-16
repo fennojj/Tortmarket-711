@@ -25,6 +25,8 @@
       "package": "app.rork.q15qiisdf8i47w9fba50o"
     },
     "web": {
+      "bundler": "metro",
+      "output": "single",
       "favicon": "./assets/images/favicon.png",
       "title": "Tort Market — Mass Tort Forecasting Game",
       "description": "Free play-money forecasting game on 70+ active MDL mass tort cases. Forecast Roundup, PFAS, Depo-Provera, Camp Lejeune and more. AI-powered edge model, real-time alerts, leaderboard competitions. No cash, no wagering.",
