@@ -143,22 +143,39 @@ function stableId(input: string): string {
   return Math.abs(h).toString(36);
 }
 
+export type FetchHeadlinesResult =
+  | { ok: true; headlines: LiveHeadline[] }
+  | { ok: false; retryable: boolean };
+
+const FETCH_TIMEOUT_MS = 8_000;
+
 /**
- * Fetch latest headlines for a market. Returns only items with a non-zero
- * sentiment signal so we don't generate noise alerts.
+ * Fetch latest headlines for a market. Returns a typed result so callers can
+ * distinguish "no signal items" (ok, empty) from a network / rate-limit error
+ * (not ok, retryable) to drive exponential backoff.
  */
 export async function fetchMarketHeadlines(
   marketId: string,
   query: string,
   limit: number = 6,
-): Promise<LiveHeadline[]> {
+): Promise<FetchHeadlinesResult> {
   const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
   const url = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}&count=${limit}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { method: "GET" });
-    if (!res.ok) return [];
+    const res = await fetch(url, { method: "GET", signal: controller.signal });
+    clearTimeout(timeoutId);
+    // 429 / 502 / 503 = rate-limited or upstream down — signal retryable
+    if (res.status === 429 || res.status === 502 || res.status === 503) {
+      console.warn(`[LiveNews] ${res.status} for ${marketId} — will back off`);
+      return { ok: false, retryable: true };
+    }
+    if (!res.ok) return { ok: false, retryable: false };
     const data: Rss2JsonResponse = await res.json();
-    if (data.status !== "ok" || !Array.isArray(data.items)) return [];
+    if (data.status !== "ok" || !Array.isArray(data.items)) {
+      return { ok: true, headlines: [] };
+    }
     const out: LiveHeadline[] = [];
     for (const it of data.items) {
       const title = (it.title ?? "").trim();
@@ -182,9 +199,11 @@ export async function fetchMarketHeadlines(
         matchedTerms: matched,
       });
     }
-    return out;
+    return { ok: true, headlines: out };
   } catch (e) {
-    console.log("[LiveNews] fetch error", marketId, e);
-    return [];
+    clearTimeout(timeoutId);
+    const isAbort = e instanceof Error && e.name === "AbortError";
+    console.warn("[LiveNews] fetch error", marketId, isAbort ? "(timeout)" : e);
+    return { ok: false, retryable: true };
   }
 }
