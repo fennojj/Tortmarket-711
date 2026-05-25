@@ -23,6 +23,7 @@ import {
 } from "@/utils/referrals";
 import { getOrAssignJoinVariant, type JoinVariant } from "@/utils/abTest";
 import JoinSponsorReel from "@/components/JoinSponsorReel";
+import NDAModal from "@/components/NDAModal";
 
 function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -52,6 +53,7 @@ export default function JoinScreen(): React.ReactElement {
   const [email, setEmail] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [ndaVisible, setNdaVisible] = useState<boolean>(false);
 
   const fade = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(28)).current;
@@ -92,7 +94,7 @@ export default function JoinScreen(): React.ReactElement {
     }
   }, [incomingCode, applyPendingRef]);
 
-  const onClaim = () => {
+  const proceedClaim = () => {
     if (isReturning) {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -129,6 +131,29 @@ export default function JoinScreen(): React.ReactElement {
       setSubmitting(false);
       setError("Something went wrong. Tap again.");
     }
+  };
+
+  const onClaim = () => {
+    if (!isReturning) {
+      const trimmed = email.trim();
+      if (!isValidEmail(trimmed)) {
+        setError("Enter a valid email to claim your bonus.");
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        }
+        return;
+      }
+      setError("");
+    }
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync().catch(() => {});
+    }
+    setNdaVisible(true);
+  };
+
+  const onAgree = () => {
+    setNdaVisible(false);
+    proceedClaim();
   };
 
   const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
@@ -205,6 +230,7 @@ export default function JoinScreen(): React.ReactElement {
             <Text style={styles.legalB}>18+ · Simulated points · No real money</Text>
           </Animated.View>
         </KeyboardAvoidingView>
+        <NDAModal visible={ndaVisible} onClose={() => setNdaVisible(false)} onAgree={onAgree} />
       </View>
     );
   }
@@ -304,6 +330,7 @@ export default function JoinScreen(): React.ReactElement {
           </Text>
         </Animated.View>
       </KeyboardAvoidingView>
+      <NDAModal visible={ndaVisible} onClose={() => setNdaVisible(false)} onAgree={onAgree} />
     </View>
   );
 }
