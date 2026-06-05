@@ -170,6 +170,22 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
     return all.filter((a) => !state.dismissedActionIds.includes(a.id));
   }, [user, signals, portfolio, edges, canClaimDaily, state.dismissedActionIds, markets]);
 
+  const todayStats = useMemo(() => {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const dayStartMs = dayStart.getTime();
+    const todayEvents = state.eventLog.filter((e) => e.at >= dayStartMs);
+    const viewedMarketsToday = new Set(
+      todayEvents
+        .filter((e): e is Extract<EngagementEvent, { kind: "view_market" }> => e.kind === "view_market")
+        .map((e) => e.marketId),
+    ).size;
+    const playsToday = todayEvents.filter((e) => e.kind === "play").length;
+    const coachMessagesToday = todayEvents.filter((e) => e.kind === "coach_message").length;
+    const claimedToday = todayEvents.some((e) => e.kind === "claim");
+    return { viewedMarketsToday, playsToday, coachMessagesToday, claimedToday };
+  }, [state.eventLog]);
+
   const coachSystemPrompt = useMemo(
     () =>
       buildCoachSystemPrompt({
@@ -193,6 +209,7 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
     actions,
     topAction: actions[0] ?? null,
     coachSystemPrompt,
+    todayStats,
     track,
     dismissAction,
   };

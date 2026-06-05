@@ -17,6 +17,8 @@ import CampaignPulseCard from "@/components/CampaignPulseCard";
 import LaunchProgress from "@/components/LaunchProgress";
 import LiveSignalTicker from "@/components/LiveSignalTicker";
 import SponsorSlot from "@/components/SponsorSlot";
+import DailyMissionsCard from "@/components/DailyMissionsCard";
+import RivalTrackerCard from "@/components/RivalTrackerCard";
 import { useAlerts } from "@/providers/AlertsProvider";
 import type { Market, MarketCategory } from "@/types";
 
@@ -248,6 +250,8 @@ export default function MarketsScreen(): React.ReactElement {
             <GrandPrizeBanner />
             <SponsorSlot tier="bounty" label="Grand prize co-sponsor" />
             <DailyClaimCard />
+            <DailyMissionsCard />
+            <RivalTrackerCard />
 
             <View style={styles.searchRow}>
               <View style={styles.searchBox}>

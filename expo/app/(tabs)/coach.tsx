@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -33,6 +33,56 @@ import { useMarkets } from "@/providers/MarketsProvider";
 import { CONFERENCE } from "@/constants/sponsors";
 import SponsorSlot from "@/components/SponsorSlot";
 
+/** Build a context-aware proactive insight without an API call */
+function buildProactiveInsight(ctx: {
+  signals: { engagementScore: number; churnRisk: number; state: string };
+  portfolio: { riskLevel: string };
+  edges: { marketId: string; recommendedSide: string; fairYes: number; confidence: number; reasons: string[] }[];
+  user: { handle?: string; streakDays?: number; positions: unknown[] };
+  markets: { id: string; caseName: string; yesPrice: number; noPrice: number }[];
+  sessionCount: number;
+}): string {
+  const { signals, portfolio, edges, user, markets, sessionCount } = ctx;
+  const streak = user.streakDays ?? 0;
+  const topEdge = edges[0];
+  const topMarket = topEdge ? markets.find((m) => m.id === topEdge.marketId) : null;
+  const candidates: string[] = [];
+
+  if (streak >= 7) {
+    candidates.push(`🔥 ${streak}-day streak — you're in elite territory. The model weights active traders higher on the leaderboard right now.`);
+  } else if (streak >= 3) {
+    candidates.push(`🔥 ${streak} days running. Keep it going — streak bonuses stack and your engagement score is climbing.`);
+  }
+
+  if (topMarket && topEdge) {
+    const up = topEdge.recommendedSide === "YES";
+    const price = up ? topMarket.yesPrice : topMarket.noPrice;
+    const fair = up ? topEdge.fairYes : 100 - topEdge.fairYes;
+    const gap = (fair - price).toFixed(0);
+    candidates.push(
+      `📊 Top edge right now: **${topMarket.caseName}** — model has ${up ? "YES" : "NO"} at ${fair.toFixed(0)}¢, currently trading at ${price}¢. That's a ${gap}¢ gap with ${topEdge.confidence.toFixed(0)}% confidence. ${topEdge.reasons[0] ?? ""}`
+    );
+  }
+
+  if (portfolio.riskLevel === "high") {
+    candidates.push(`⚠️ Your book is running HIGH risk with ${user.positions.length} open positions. Consider hedging before the next docket update drops.`);
+  }
+
+  if (signals.churnRisk > 65 && sessionCount > 1) {
+    candidates.push(`👋 Welcome back — signals have shifted since your last visit. Multiple markets moved more than 8¢. Worth a quick scan before placing new positions.`);
+  }
+
+  if (signals.engagementScore > 75) {
+    candidates.push(`⚡ Engagement at ${signals.engagementScore.toFixed(0)}/100 — you're in the model's top activity tier. Your trades carry more leaderboard weight right now.`);
+  }
+
+  if (candidates.length === 0) {
+    candidates.push(`${edges.length} markets tracked live. Your churn risk is ${signals.churnRisk.toFixed(0)}% — let's keep that low. What do you want to dig into?`);
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 type ChatRole = "system" | "user" | "assistant";
 interface ChatMessage {
   id: string;
@@ -65,7 +115,7 @@ const QUICK_PROMPTS: string[] = [
 ];
 
 export default function CoachScreen(): React.ReactElement {
-  const { signals, portfolio, edges, actions, coachSystemPrompt, track } = useEngagement();
+  const { signals, portfolio, edges, actions, coachSystemPrompt, track, sessionCount } = useEngagement();
   const { user } = useApp();
   const { markets } = useMarkets();
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -80,6 +130,27 @@ export default function CoachScreen(): React.ReactElement {
   ]);
   const [input, setInput] = useState<string>("");
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const insightFiredRef = useRef<boolean>(false);
+
+  // Fire a proactive insight after a short delay on first open (returning users only)
+  useEffect(() => {
+    if (insightFiredRef.current) return;
+    if (!user.onboarded || signals.state === "new") return;
+    insightFiredRef.current = true;
+    const timer = setTimeout(() => {
+      const insight = buildProactiveInsight({
+        signals, portfolio, edges, user, markets,
+        sessionCount: signals.engagementScore > 0 ? 2 : 0,
+      });
+      setMessages((prev) => [
+        ...prev,
+        { id: `proactive-${Date.now()}`, role: "assistant" as ChatRole, content: insight },
+      ]);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+    }, 1_200);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendMutation = useMutation({
     mutationFn: async (text: string) => {

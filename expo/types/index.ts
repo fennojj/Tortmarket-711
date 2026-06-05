@@ -63,6 +63,7 @@ export interface User {
   referredBy?: string;
   referralCount?: number;
   referralBonusEarned?: number;
+  lastMissionsBonusAt?: number;
 }
 
 export type AlertKind = "play" | "prediction" | "reddit" | "x" | "announcement" | "resolution";

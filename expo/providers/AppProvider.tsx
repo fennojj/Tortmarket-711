@@ -265,6 +265,19 @@ export const [AppProvider, useApp] = createContextHook(() => {
     return { ok: true as const, amount: SHARE_BONUS };
   }, [user, persistMutation]);
 
+  const claimMissionsBonus = useCallback(() => {
+    const now = Date.now();
+    if (user.lastMissionsBonusAt && isSameDay(user.lastMissionsBonusAt, now)) {
+      return { ok: false as const };
+    }
+    const amount = 1000;
+    const next: User = { ...user, pointBalance: user.pointBalance + amount, lastMissionsBonusAt: now };
+    setUser(next);
+    persistMutation.mutate(next);
+    console.log("[AppProvider] missions bonus claimed", { amount });
+    return { ok: true as const, amount };
+  }, [user, persistMutation]);
+
   const resetBalance = useCallback(() => {
     const next = { ...DEFAULT_USER };
     setUser(next);
@@ -441,6 +454,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     claimWelcomeBonus,
     claimShareBonus,
     canClaimDaily,
+    claimMissionsBonus,
     resetBalance,
     registerUser,
     creditOwnReferral,
