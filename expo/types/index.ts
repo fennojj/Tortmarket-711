@@ -56,6 +56,9 @@ export interface User {
   welcomeBonusClaimed?: boolean;
   shareBonusClaimed?: boolean;
   email?: string;
+  phone?: string;
+  smsOptedIn?: boolean;
+  ghlContactId?: string;
   joinedAt?: number;
   source?: string;
   onboarded?: boolean;

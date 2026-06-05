@@ -427,6 +427,33 @@ export const [AppProvider, useApp] = createContextHook(() => {
     console.log("[Referral] self credit applied", { count: next.referralCount });
   }, [user, persistMutation]);
 
+  const setPhoneNumber = useCallback(
+    (phone: string) => {
+      const next: User = { ...user, phone };
+      setUser(next);
+      persistMutation.mutate(next);
+    },
+    [user, persistMutation],
+  );
+
+  const setSmsOptedIn = useCallback(
+    (optedIn: boolean) => {
+      const next: User = { ...user, smsOptedIn: optedIn };
+      setUser(next);
+      persistMutation.mutate(next);
+    },
+    [user, persistMutation],
+  );
+
+  const setGhlContactId = useCallback(
+    (contactId: string) => {
+      const next: User = { ...user, ghlContactId: contactId };
+      setUser(next);
+      persistMutation.mutate(next);
+    },
+    [user, persistMutation],
+  );
+
   const portfolioValue = useMemo(() => {
     return user.positions.reduce((acc, p) => {
       const m = markets.find((mm) => mm.id === p.marketId);
@@ -458,6 +485,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     resetBalance,
     registerUser,
     creditOwnReferral,
+    setPhoneNumber,
+    setSmsOptedIn,
+    setGhlContactId,
     portfolioValue,
     portfolioCost,
     lastPlay,
