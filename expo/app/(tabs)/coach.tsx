@@ -23,6 +23,8 @@ import {
   ArrowRight,
   Gauge,
   Activity,
+  Zap,
+  MapPin,
 } from "lucide-react-native";
 import { useMutation } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -42,7 +44,7 @@ function buildProactiveInsight(ctx: {
   markets: { id: string; caseName: string; yesPrice: number; noPrice: number }[];
   sessionCount: number;
 }): string {
-  const { signals, portfolio, edges, user, markets, sessionCount } = ctx;
+  const { signals, portfolio, edges, user, markets } = ctx;
   const streak = user.streakDays ?? 0;
   const topEdge = edges[0];
   const topMarket = topEdge ? markets.find((m) => m.id === topEdge.marketId) : null;
@@ -60,7 +62,7 @@ function buildProactiveInsight(ctx: {
     const fair = up ? topEdge.fairYes : 100 - topEdge.fairYes;
     const gap = (fair - price).toFixed(0);
     candidates.push(
-      `📊 Top edge right now: **${topMarket.caseName}** — model has ${up ? "YES" : "NO"} at ${fair.toFixed(0)}¢, currently trading at ${price}¢. That's a ${gap}¢ gap with ${topEdge.confidence.toFixed(0)}% confidence. ${topEdge.reasons[0] ?? ""}`
+      `📊 Top edge right now: ${topMarket.caseName} — model has ${up ? "YES" : "NO"} at ${fair.toFixed(0)}¢, currently trading at ${price}¢. That's a ${gap}¢ gap with ${topEdge.confidence.toFixed(0)}% confidence. ${topEdge.reasons[0] ?? ""}`
     );
   }
 
@@ -68,7 +70,7 @@ function buildProactiveInsight(ctx: {
     candidates.push(`⚠️ Your book is running HIGH risk with ${user.positions.length} open positions. Consider hedging before the next docket update drops.`);
   }
 
-  if (signals.churnRisk > 65 && sessionCount > 1) {
+  if (signals.churnRisk > 65) {
     candidates.push(`👋 Welcome back — signals have shifted since your last visit. Multiple markets moved more than 8¢. Worth a quick scan before placing new positions.`);
   }
 
@@ -83,11 +85,42 @@ function buildProactiveInsight(ctx: {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+/** Build the guided new-user onboarding sequence */
+function buildNewUserMessages(ctx: {
+  handle?: string;
+  edges: { marketId: string; recommendedSide: string; fairYes: number; confidence: number; reasons: string[] }[];
+  markets: { id: string; caseName: string; yesPrice: number; noPrice: number; mdlSentiment: number; daubertStrength: number }[];
+}): { id: string; content: string; tradeCtaMarketId?: string }[] {
+  const { handle, edges, markets } = ctx;
+  const firstName = handle?.replace("@", "").split(/[-_]/)[0] ?? "there";
+
+  const topEdge = edges[0];
+  const topMarket = topEdge ? markets.find((m) => m.id === topEdge.marketId) : null;
+
+  const msg1 = `Hey ${firstName} 👋 Welcome to TortCoach. I'm your personal mass-tort analyst — I track live MDL dockets, Daubert rulings, and corporate reserve signals across 25+ active cases.\n\nYour 25,000-point stake is live. Let me show you your first winning trade.`;
+
+  const msg2 = topMarket && topEdge
+    ? `📊 **Your #1 Trade Right Now:**\n\n${topMarket.caseName}\nSide: ${topEdge.recommendedSide === "YES" ? "✅ YES" : "❌ NO"}\nCurrent price: ${topEdge.recommendedSide === "YES" ? topMarket.yesPrice : topMarket.noPrice}¢\nModel fair value: ${topEdge.recommendedSide === "YES" ? topEdge.fairYes.toFixed(0) : (100 - topEdge.fairYes).toFixed(0)}¢\nEdge: ${(Math.abs(topEdge.fairYes - (topEdge.recommendedSide === "YES" ? topMarket.yesPrice : topMarket.noPrice))).toFixed(0)}¢ | Confidence: ${topEdge.confidence.toFixed(0)}%\n\n${topEdge.reasons[0] ?? "Strong multi-signal alignment detected."}`
+    : `📊 Markets are live and pricing in real MDL signals. I track Daubert strength (how likely expert testimony survives), MDL sentiment (plaintiff-side momentum), and corporate reserves (how much defendants have set aside).\n\nThese three signals together form the model's fair value — when market price deviates, that's your edge.`;
+
+  const msg3 = topMarket && topEdge
+    ? `The model blends three signals for this case:\n\n• Daubert strength: ${topMarket.daubertStrength}/100 — expert testimony is ${topMarket.daubertStrength > 65 ? "solid" : "at risk"}\n• MDL sentiment: ${topMarket.mdlSentiment}/100 — plaintiff momentum is ${topMarket.mdlSentiment > 60 ? "building" : "mixed"}\n• Reserve signals: watching corporate filings for settlement hints\n\nTap "Place This Trade" to position yourself, or ask me any questions first. I'll walk you through it.`
+    : `Start by browsing the Markets tab — find a case you know. Legal knowledge is a real edge here. Camp Lejeune, 3M Combat Arms, and Roundup are good starting points with strong signals.\n\nAsk me anything — case background, what a Daubert ruling means, or which market has the best edge right now. I'm here for it.`;
+
+  return [
+    { id: "ob-1", content: msg1 },
+    { id: "ob-2", content: msg2, tradeCtaMarketId: topMarket?.id },
+    { id: "ob-3", content: msg3, tradeCtaMarketId: topEdge ? topMarket?.id : undefined },
+  ];
+}
+
 type ChatRole = "system" | "user" | "assistant";
+
 interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  tradeCtaMarketId?: string;
 }
 
 async function callCoachApi(messages: { role: ChatRole; content: string }[]): Promise<string> {
@@ -107,34 +140,68 @@ async function callCoachApi(messages: { role: ChatRole; content: string }[]): Pr
   return json.completion ?? "I'm here — try that again in a second.";
 }
 
-const QUICK_PROMPTS: string[] = [
+const RETURNING_PROMPTS: string[] = [
   "What's my best move right now?",
   "Explain Daubert vs. MDL sentiment",
   "Should I rebalance my portfolio?",
   "Which market has the biggest edge?",
 ];
 
+const NEW_USER_PROMPTS: string[] = [
+  "Place this trade for me",
+  "Why is this case a good bet?",
+  "Explain how edges work",
+  "What markets should I start with?",
+  "How do I read the model signals?",
+];
+
 export default function CoachScreen(): React.ReactElement {
-  const { signals, portfolio, edges, actions, coachSystemPrompt, track, sessionCount } = useEngagement();
+  const { signals, portfolio, edges, actions, coachSystemPrompt, track } = useEngagement();
   const { user } = useApp();
   const { markets } = useMarkets();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "greet",
-      role: "assistant",
-      content:
-        signals.state === "new" || !user.onboarded
-          ? `Welcome${user.handle && user.handle !== "@you" ? `, ${user.handle}` : ""}. I'm TortCoach. I watch your book, the docket, and the model in real time. Ask me anything — or tap a prompt below.`
-          : `Back at it, ${user.handle}. Engagement ${signals.engagementScore.toFixed(0)}/100. I see ${edges.length} live markets and ${user.positions.length} positions on your book. What do you want to dig into?`,
-    },
-  ]);
+
+  const isNewUser = useMemo(
+    () => user.onboarded && !!user.joinedAt && Date.now() - (user.joinedAt ?? 0) < 600_000,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const initialGreeting = useMemo<ChatMessage>(() => ({
+    id: "greet",
+    role: "assistant",
+    content: isNewUser
+      ? `Welcome${user.handle && user.handle !== "@you" ? `, ${user.handle}` : ""}! I'm TortCoach — your AI mass-tort analyst. Give me just a second to pull your personalized signals...`
+      : `Back at it, ${user.handle}. Engagement ${signals.engagementScore.toFixed(0)}/100. I see ${edges.length} live markets and ${user.positions.length} positions on your book. What do you want to dig into?`,
+  }), [isNewUser, user.handle, signals.engagementScore, edges.length, user.positions.length]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([initialGreeting]);
   const [input, setInput] = useState<string>("");
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const insightFiredRef = useRef<boolean>(false);
 
-  // Fire a proactive insight after a short delay on first open (returning users only)
+  // New user: inject guided onboarding sequence
   useEffect(() => {
-    if (insightFiredRef.current) return;
+    if (insightFiredRef.current || !isNewUser) return;
+    insightFiredRef.current = true;
+
+    const steps = buildNewUserMessages({ handle: user.handle, edges, markets });
+
+    steps.forEach((step, i) => {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { id: step.id, role: "assistant" as ChatRole, content: step.content, tradeCtaMarketId: step.tradeCtaMarketId },
+        ]);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+      }, 900 + i * 2_200);
+    });
+  // Only fire once on mount for new users
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Returning user: fire proactive insight
+  useEffect(() => {
+    if (insightFiredRef.current || isNewUser) return;
     if (!user.onboarded || signals.state === "new") return;
     insightFiredRef.current = true;
     const timer = setTimeout(() => {
@@ -199,6 +266,12 @@ export default function CoachScreen(): React.ReactElement {
   );
 
   const topEdges = useMemo(() => edges.slice(0, 5), [edges]);
+  const quickPrompts = isNewUser ? NEW_USER_PROMPTS : RETURNING_PROMPTS;
+
+  const handleTradeCtaTap = useCallback((marketId: string) => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    router.push(`/wager?marketId=${marketId}` as never);
+  }, []);
 
   const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
     if (item.role === "user") {
@@ -215,12 +288,24 @@ export default function CoachScreen(): React.ReactElement {
         <View style={styles.avatar}>
           <Sparkles size={12} color={Colors.yellow} />
         </View>
-        <View style={styles.botBubble}>
-          <Text style={styles.botText}>{item.content}</Text>
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={styles.botBubble}>
+            <Text style={styles.botText}>{item.content}</Text>
+          </View>
+          {/* Trade CTA button for onboarding messages */}
+          {item.tradeCtaMarketId && isNewUser && (
+            <Pressable
+              onPress={() => handleTradeCtaTap(item.tradeCtaMarketId!)}
+              style={styles.tradeCtaBtn}
+            >
+              <Zap size={13} color="#fff" />
+              <Text style={styles.tradeCtaText}>Place This Trade →</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );
-  }, []);
+  }, [isNewUser, handleTradeCtaTap]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -238,7 +323,7 @@ export default function CoachScreen(): React.ReactElement {
           ListHeaderComponent={
             <View>
               <LinearGradient
-                colors={["#0B1220", "#1E3A8A"]}
+                colors={isNewUser ? ["#0B1220", "#1a2e5a", "#0d4a2f"] : ["#0B1220", "#1E3A8A"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.hero}
@@ -248,14 +333,25 @@ export default function CoachScreen(): React.ReactElement {
                     <Sparkles size={11} color={Colors.yellow} />
                     <Text style={styles.heroBadgeText}>TORTCOACH AI</Text>
                   </View>
-                  <View style={styles.stateChip}>
-                    <Activity size={10} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.stateChipText}>{signals.state.toUpperCase()}</Text>
-                  </View>
+                  {isNewUser ? (
+                    <View style={styles.newUserBadge}>
+                      <MapPin size={9} color="#86EFAC" />
+                      <Text style={styles.newUserBadgeText}>ONBOARDING</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.stateChip}>
+                      <Activity size={10} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.stateChipText}>{signals.state.toUpperCase()}</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={styles.heroTitle}>Your personal mass-tort analyst</Text>
+                <Text style={styles.heroTitle}>
+                  {isNewUser ? "Let's make your first trade" : "Your personal mass-tort analyst"}
+                </Text>
                 <Text style={styles.heroSub}>
-                  Real-time signals from MDL sentiment, Daubert strength, docket momentum, and your own book.
+                  {isNewUser
+                    ? "I'll walk you through the top edge right now, explain why it's good, and help you position."
+                    : "Real-time signals from MDL sentiment, Daubert strength, docket momentum, and your own book."}
                 </Text>
                 {CONFERENCE.active && CONFERENCE.coachSponsor && (
                   <View style={styles.coachSponsor} testID="coach-sponsor">
@@ -271,12 +367,24 @@ export default function CoachScreen(): React.ReactElement {
                   <Stat label="Churn risk" value={`${signals.churnRisk.toFixed(0)}%`} icon="d" />
                   <Stat label="Book risk" value={portfolio.riskLevel} icon="s" />
                 </View>
+
+                {/* New user step indicators */}
+                {isNewUser && (
+                  <View style={styles.stepRow}>
+                    {["Intro", "Top Trade", "Why It Wins"].map((label, i) => (
+                      <View key={label} style={styles.stepItem}>
+                        <View style={[styles.stepDot, { backgroundColor: messages.length > i + 1 ? "#86EFAC" : "rgba(255,255,255,0.3)" }]} />
+                        <Text style={[styles.stepLabel, { color: messages.length > i + 1 ? "#86EFAC" : "rgba(255,255,255,0.5)" }]}>{label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </LinearGradient>
 
               <SponsorSlot tier="coach" label="Coach hero sponsor — logo + tagline" />
               <SponsorSlot tier="ribbon" compact label="Co-presenting strip" />
 
-              {actions.length > 0 && (
+              {!isNewUser && actions.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Agent playbook</Text>
                   <Text style={styles.sectionSub}>Prioritized by your signals</Text>
@@ -369,8 +477,14 @@ export default function CoachScreen(): React.ReactElement {
               <SponsorSlot tier="presenting" label="Pre-chat presenting sponsor" />
 
               <View style={styles.chatHeader}>
-                <Text style={styles.sectionTitle}>Chat with TortCoach</Text>
-                <Text style={styles.sectionSub}>Context-aware of your book + the docket</Text>
+                <Text style={styles.sectionTitle}>
+                  {isNewUser ? "Ask TortCoach anything" : "Chat with TortCoach"}
+                </Text>
+                <Text style={styles.sectionSub}>
+                  {isNewUser
+                    ? "No question is too basic — I'm here to help you win"
+                    : "Context-aware of your book + the docket"}
+                </Text>
               </View>
             </View>
           }
@@ -394,14 +508,14 @@ export default function CoachScreen(): React.ReactElement {
           <View style={{ marginRight: 8 }}>
             <SponsorSlot tier="tier" inline compact height={36} label="Sponsored prompt" />
           </View>
-          {QUICK_PROMPTS.map((p) => (
+          {quickPrompts.map((p) => (
             <Pressable
               key={p}
               onPress={() => send(p)}
-              style={styles.quickChip}
+              style={[styles.quickChip, isNewUser && styles.quickChipNew]}
               testID={`quick-${p}`}
             >
-              <Text style={styles.quickText}>{p}</Text>
+              <Text style={[styles.quickText, isNewUser && styles.quickTextNew]}>{p}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -411,7 +525,7 @@ export default function CoachScreen(): React.ReactElement {
             testID="coach-input"
             value={input}
             onChangeText={setInput}
-            placeholder="Ask about a market, your book, or a signal…"
+            placeholder={isNewUser ? "Ask anything — I'll walk you through it…" : "Ask about a market, your book, or a signal…"}
             placeholderTextColor={Colors.textMuted}
             style={styles.input}
             onSubmitEditing={() => send()}
@@ -467,6 +581,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   heroBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
+  newUserBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginLeft: "auto",
+    backgroundColor: "rgba(134,239,172,0.18)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(134,239,172,0.35)",
+  },
+  newUserBadgeText: { color: "#86EFAC", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
   stateChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -491,6 +618,20 @@ const styles = StyleSheet.create({
   },
   statVal: { color: "#fff", fontSize: 15, fontWeight: "900", marginTop: 2 },
   statLabel: { color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
+
+  stepRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  stepDot: { width: 8, height: 8, borderRadius: 4 },
+  stepLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
 
   coachSponsor: {
     marginTop: 12,
@@ -568,7 +709,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 10,
     gap: 8,
-    alignItems: "flex-end",
+    alignItems: "flex-start",
   },
   avatar: {
     width: 26,
@@ -577,9 +718,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.text,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 2,
   },
   botBubble: {
-    maxWidth: "82%",
+    maxWidth: "100%",
     backgroundColor: Colors.surface,
     borderRadius: 16,
     borderTopLeftRadius: 4,
@@ -599,6 +742,18 @@ const styles = StyleSheet.create({
   },
   userText: { color: "#fff", fontSize: 13.5, lineHeight: 19, fontWeight: "600" },
 
+  tradeCtaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.emerald,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  tradeCtaText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+
   typing: {
     flexDirection: "row",
     alignItems: "center",
@@ -617,7 +772,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
+  quickChipNew: {
+    backgroundColor: Colors.emeraldSoft,
+    borderColor: "#86EFAC",
+  },
   quickText: { color: Colors.text, fontSize: 12, fontWeight: "700" },
+  quickTextNew: { color: Colors.emerald },
 
   inputBar: {
     flexDirection: "row",

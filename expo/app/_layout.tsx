@@ -14,8 +14,10 @@ import { SponsorConfigProvider } from "@/providers/SponsorConfigProvider";
 import { SponsorUpdatesProvider } from "@/providers/SponsorUpdatesProvider";
 import { MarketsProvider } from "@/providers/MarketsProvider";
 import { LiveSignalsProvider } from "@/providers/LiveSignalsProvider";
+import { NotificationProvider } from "@/providers/NotificationProvider";
 import OnboardingModal from "@/components/OnboardingModal";
 import SponsorMapToggle from "@/components/SponsorMapToggle";
+import InAppToast from "@/components/InAppToast";
 import { Colors } from "@/constants/colors";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import BuildBadge from "@/components/BuildBadge";
@@ -80,6 +82,7 @@ export default function RootLayout() {
                 <CampaignProvider>
                   <SponsorConfigProvider>
                     <SponsorUpdatesProvider>
+                    <NotificationProvider>
                     <SponsorMapProvider>
                       <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg }}>
                         <SafeAreaProvider>
@@ -87,10 +90,12 @@ export default function RootLayout() {
                           <RootLayoutNav />
                           <OnboardingModal />
                           <SponsorMapToggle />
+                          <InAppToast />
                           <BuildBadge />
                         </SafeAreaProvider>
                       </GestureHandlerRootView>
                     </SponsorMapProvider>
+                    </NotificationProvider>
                     </SponsorUpdatesProvider>
                   </SponsorConfigProvider>
                 </CampaignProvider>
