@@ -15,6 +15,7 @@ import { SponsorUpdatesProvider } from "@/providers/SponsorUpdatesProvider";
 import { MarketsProvider } from "@/providers/MarketsProvider";
 import { LiveSignalsProvider } from "@/providers/LiveSignalsProvider";
 import { NotificationProvider } from "@/providers/NotificationProvider";
+import { AdminConfigProvider } from "@/providers/AdminConfigProvider";
 import OnboardingModal from "@/components/OnboardingModal";
 import SponsorMapToggle from "@/components/SponsorMapToggle";
 import InAppToast from "@/components/InAppToast";
@@ -75,6 +76,7 @@ export default function RootLayout() {
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <MarketsProvider>
+          <AdminConfigProvider>
           <AppProvider>
             <AlertsProvider>
               <LiveSignalsProvider>
@@ -103,6 +105,7 @@ export default function RootLayout() {
               </LiveSignalsProvider>
             </AlertsProvider>
           </AppProvider>
+          </AdminConfigProvider>
         </MarketsProvider>
       </QueryClientProvider>
     </AppErrorBoundary>

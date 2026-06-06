@@ -5,14 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 import { useMarkets } from "@/providers/MarketsProvider";
+import { useAdminConfig } from "@/providers/AdminConfigProvider";
 import type { AlertItem, Position, User } from "@/types";
 import {
   generateReferralCode,
   normalizeRefCode,
   parseRefFromUrl,
   PENDING_REF_KEY,
-  REFERRAL_BONUS_INVITEE,
-  REFERRAL_BONUS_INVITER,
 } from "@/utils/referrals";
 import {
   fetchUnclaimedReferrals,
@@ -75,6 +74,7 @@ async function saveUser(u: User): Promise<User> {
 export const [AppProvider, useApp] = createContextHook(() => {
   const qc = useQueryClient();
   const { markets, marketById, applyTrade } = useMarkets();
+  const { config } = useAdminConfig();
   const [user, setUser] = useState<User>(DEFAULT_USER);
   const [lastPlay, setLastPlay] = useState<AlertItem | null>(null);
   const [pendingRef, setPendingRef] = useState<string | null>(null);
@@ -139,6 +139,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       const existing = user.positions.find(
         (p) => p.marketId === args.marketId && p.side === args.side,
       );
+      const hadAnyPosition = user.positions.length > 0;
       let positions: Position[];
       if (existing) {
         const totalShares = existing.shares + args.shares;
@@ -157,9 +158,23 @@ export const [AppProvider, useApp] = createContextHook(() => {
         };
         positions = [...user.positions, np];
       }
+      const tradeXp = config.rewards.tradeXpEnabled
+        ? Math.floor(cost / 1000) * config.rewards.tradeXpPerThousandPoints
+        : 0;
+      const firstTradeBonus = !hadAnyPosition ? config.rewards.firstTradeBonusPoints : 0;
+      const sponsorMarketMatch =
+        config.rewards.sponsorTradeBonusMarketIds.length === 0 ||
+        config.rewards.sponsorTradeBonusMarketIds.includes(args.marketId);
+      const sponsorTradeBonus =
+        config.sponsorLevel.enabled &&
+        config.rewards.sponsorTradeBonusEnabled &&
+        sponsorMarketMatch
+          ? config.rewards.sponsorTradeBonusPoints
+          : 0;
+      const totalReward = tradeXp + firstTradeBonus + sponsorTradeBonus;
       const next: User = {
         ...user,
-        pointBalance: user.pointBalance - cost,
+        pointBalance: user.pointBalance - cost + totalReward,
         positions,
       };
       setUser(next);
@@ -173,7 +188,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         priceCents: args.priceCents,
       });
 
-      if (cost >= 10000) {
+      if (cost >= config.campaigns.whalePlayThresholdPoints) {
         console.log("[Discord Webhook] #whale-tracker:", {
           user: user.handle,
           market: args.marketId,
@@ -197,10 +212,18 @@ export const [AppProvider, useApp] = createContextHook(() => {
       };
       setLastPlay(playEvent);
       console.log("[AppProvider] play emitted", playEvent);
+      if (totalReward > 0) {
+        console.log("[Rewards] trade reward", {
+          tradeXp,
+          firstTradeBonus,
+          sponsorTradeBonus,
+          totalReward,
+        });
+      }
 
-      return { ok: true as const };
+      return { ok: true as const, reward: totalReward };
     },
-    [user, persistMutation, applyTrade, marketById],
+    [user, persistMutation, applyTrade, marketById, config],
   );
 
   const redeemReward = useCallback(
@@ -226,8 +249,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const prevStreak = user.streakDays ?? 0;
     const consecutive = user.lastClaimAt ? isConsecutiveDay(user.lastClaimAt, now) : false;
     const nextStreak = consecutive ? prevStreak + 1 : 1;
-    const bonus = Math.min(nextStreak - 1, 6) * 250;
-    const amount = DAILY_BASE_REWARD + bonus;
+    const cappedDays = Math.max(1, config.rewards.dailyStreakCapDays);
+    const bonus = Math.min(nextStreak - 1, cappedDays - 1) * config.rewards.dailyStreakStepPoints;
+    const amount = config.rewards.dailyBasePoints + bonus;
     const next: User = {
       ...user,
       pointBalance: user.pointBalance + amount,
@@ -238,45 +262,45 @@ export const [AppProvider, useApp] = createContextHook(() => {
     persistMutation.mutate(next);
     console.log("[AppProvider] claimDaily", { amount, streak: nextStreak });
     return { ok: true as const, amount, streak: nextStreak };
-  }, [user, persistMutation]);
+  }, [user, persistMutation, config.rewards.dailyBasePoints, config.rewards.dailyStreakCapDays, config.rewards.dailyStreakStepPoints]);
 
   const claimWelcomeBonus = useCallback(() => {
     if (user.welcomeBonusClaimed) return { ok: false as const, reason: "Already claimed" };
     const next: User = {
       ...user,
-      pointBalance: user.pointBalance + WELCOME_BONUS,
+      pointBalance: user.pointBalance + config.rewards.welcomeBonusPoints,
       welcomeBonusClaimed: true,
     };
     setUser(next);
     persistMutation.mutate(next);
-    return { ok: true as const, amount: WELCOME_BONUS };
-  }, [user, persistMutation]);
+    return { ok: true as const, amount: config.rewards.welcomeBonusPoints };
+  }, [user, persistMutation, config.rewards.welcomeBonusPoints]);
 
   const claimShareBonus = useCallback(() => {
     if (user.shareBonusClaimed) return { ok: false as const, reason: "Already claimed", amount: 0 };
     const next: User = {
       ...user,
-      pointBalance: user.pointBalance + SHARE_BONUS,
+      pointBalance: user.pointBalance + config.rewards.shareBonusPoints,
       shareBonusClaimed: true,
     };
     setUser(next);
     persistMutation.mutate(next);
-    console.log("[AppProvider] share bonus claimed", { amount: SHARE_BONUS });
-    return { ok: true as const, amount: SHARE_BONUS };
-  }, [user, persistMutation]);
+    console.log("[AppProvider] share bonus claimed", { amount: config.rewards.shareBonusPoints });
+    return { ok: true as const, amount: config.rewards.shareBonusPoints };
+  }, [user, persistMutation, config.rewards.shareBonusPoints]);
 
   const claimMissionsBonus = useCallback(() => {
     const now = Date.now();
     if (user.lastMissionsBonusAt && isSameDay(user.lastMissionsBonusAt, now)) {
       return { ok: false as const };
     }
-    const amount = 1000;
+    const amount = config.rewards.missionsBonusPoints;
     const next: User = { ...user, pointBalance: user.pointBalance + amount, lastMissionsBonusAt: now };
     setUser(next);
     persistMutation.mutate(next);
     console.log("[AppProvider] missions bonus claimed", { amount });
     return { ok: true as const, amount };
-  }, [user, persistMutation]);
+  }, [user, persistMutation, config.rewards.missionsBonusPoints]);
 
   const resetBalance = useCallback(() => {
     const next = { ...DEFAULT_USER };
@@ -289,7 +313,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       const ref = normalizeRefCode(args.referredBy) ?? pendingRef;
       const isSelfRef = ref && user.referralCode && ref === user.referralCode;
       const appliedRef = isSelfRef ? null : ref;
-      const inviteeBonus = appliedRef ? REFERRAL_BONUS_INVITEE : 0;
+      const inviteeBonus = appliedRef ? config.recruiting.inviteeBonusPoints : 0;
 
       const next: User = {
         ...user,
@@ -351,19 +375,19 @@ export const [AppProvider, useApp] = createContextHook(() => {
             "Tags": "handshake,gift",
             "Content-Type": "text/plain",
           },
-          body: `Inviter ${appliedRef} → ${next.handle} (${next.email}). Credit ${REFERRAL_BONUS_INVITER} pts.`,
+          body: `Inviter ${appliedRef} → ${next.handle} (${next.email}). Credit ${config.recruiting.inviterBonusPoints} pts.`,
         }).catch((e) => console.log("[Referral] ntfy error", e));
       }
 
       return { ok: true as const, referredBy: appliedRef };
     },
-    [user, persistMutation, pendingRef],
+    [user, persistMutation, pendingRef, config.recruiting.inviteeBonusPoints, config.recruiting.inviterBonusPoints],
   );
 
   const creditReferrals = useCallback(
     (count: number) => {
       if (count <= 0) return;
-      const totalBonus = REFERRAL_BONUS_INVITER * count;
+      const totalBonus = config.recruiting.inviterBonusPoints * count;
       const next: User = {
         ...user,
         pointBalance: user.pointBalance + totalBonus,
@@ -374,7 +398,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       persistMutation.mutate(next);
       console.log("[Referral] credited", { count, totalBonus });
     },
-    [user, persistMutation],
+    [user, persistMutation, config.recruiting.inviterBonusPoints],
   );
 
   const referralPollQuery = useQuery({
@@ -418,14 +442,14 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const creditOwnReferral = useCallback(() => {
     const next: User = {
       ...user,
-      pointBalance: user.pointBalance + REFERRAL_BONUS_INVITER,
+      pointBalance: user.pointBalance + config.recruiting.inviterBonusPoints,
       referralCount: (user.referralCount ?? 0) + 1,
-      referralBonusEarned: (user.referralBonusEarned ?? 0) + REFERRAL_BONUS_INVITER,
+      referralBonusEarned: (user.referralBonusEarned ?? 0) + config.recruiting.inviterBonusPoints,
     };
     setUser(next);
     persistMutation.mutate(next);
     console.log("[Referral] self credit applied", { count: next.referralCount });
-  }, [user, persistMutation]);
+  }, [user, persistMutation, config.recruiting.inviterBonusPoints]);
 
   const setPhoneNumber = useCallback(
     (phone: string) => {
@@ -493,5 +517,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     lastPlay,
     pendingRef,
     applyPendingRef,
+    rewardConfig: config.rewards,
+    recruitingConfig: config.recruiting,
+    campaignConfig: config.campaigns,
+    sponsorLevelConfig: config.sponsorLevel,
   };
 });

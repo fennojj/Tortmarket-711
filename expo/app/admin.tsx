@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Save,
@@ -30,16 +31,31 @@ import {
   Zap,
   Link2,
   CheckCircle2,
+  Rocket,
+  TrendingUp,
+  Download,
+  Users,
+  SlidersHorizontal,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { Colors } from "@/constants/colors";
 import { useSponsorConfig, type SponsorMap } from "@/providers/SponsorConfigProvider";
 import { useSponsorMap } from "@/providers/SponsorMapProvider";
 import { useSponsorUpdates } from "@/providers/SponsorUpdatesProvider";
+import { useAdminConfig } from "@/providers/AdminConfigProvider";
+import { useApp } from "@/providers/AppProvider";
+import {
+  fetchRecentSignups,
+  fetchSignupStats,
+  fetchTopInviters,
+  supabaseEnabled,
+  type SignupRow,
+} from "@/lib/supabase";
+import { getInviteUrl, LAUNCH_GOAL } from "@/utils/referrals";
 import SponsorSlot from "@/components/SponsorSlot";
 import type { SponsorSlotTier } from "@/constants/sponsors";
 
-type AdminTab = "sponsors" | "updates" | "pitch" | "integrations";
+type AdminTab = "sponsors" | "growth" | "updates" | "pitch" | "integrations";
 
 const TIERS: SponsorSlotTier[] = [
   "banner",
@@ -84,6 +100,7 @@ export default function AdminScreen(): React.ReactElement {
   const params = useLocalSearchParams<{ tab?: string }>();
   const initialTab: AdminTab =
     params.tab === "updates" ||
+    params.tab === "growth" ||
     params.tab === "pitch" ||
     params.tab === "integrations"
       ? params.tab
@@ -96,11 +113,13 @@ export default function AdminScreen(): React.ReactElement {
       <View style={styles.wrap}>
         <View style={styles.tabBar}>
           <TabPill label="Sponsors" active={tab === "sponsors"} onPress={() => setTab("sponsors")} />
+          <TabPill label="Growth" active={tab === "growth"} onPress={() => setTab("growth")} />
           <TabPill label="Updates" active={tab === "updates"} onPress={() => setTab("updates")} />
           <TabPill label="Pitch" active={tab === "pitch"} onPress={() => setTab("pitch")} />
           <TabPill label="Integrations" active={tab === "integrations"} onPress={() => setTab("integrations")} />
         </View>
         {tab === "sponsors" && <SponsorsTab onDone={() => router.back()} />}
+        {tab === "growth" && <GrowthRulesTab />}
         {tab === "updates" && <UpdatesTab />}
         {tab === "pitch" && <PitchTab />}
         {tab === "integrations" && <IntegrationsTab />}

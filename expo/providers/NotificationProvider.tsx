@@ -2,6 +2,7 @@ import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/providers/AppProvider";
 import { useMarkets } from "@/providers/MarketsProvider";
+import { useAdminConfig } from "@/providers/AdminConfigProvider";
 import { sendSms, formatSmsAlert } from "@/utils/sms";
 
 export interface InAppNotification {
@@ -217,10 +218,11 @@ const STATIC_ALERTS: Omit<InAppNotification, "id" | "createdAt">[] = [
 function pickAlert(
   markets: { id: string; caseName: string; yesPrice: number; change24h: number }[],
   shown: Set<string>,
+  priceMoveThresholdCents: number,
 ): InAppNotification | null {
   // First, try dynamic alert based on biggest market mover
   const bigMover = markets
-    .filter((m) => Math.abs(m.change24h) >= 5)
+    .filter((m) => Math.abs(m.change24h) >= Math.max(1, priceMoveThresholdCents - 3))
     .sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))[0];
 
   const dynamicKey = bigMover ? `dynamic-${bigMover.id}` : null;
@@ -235,7 +237,7 @@ function pickAlert(
       title: `${bigMover.caseName} ${up ? "surging" : "dropping"}`,
       body: `${up ? "+" : ""}${bigMover.change24h.toFixed(1)}¢ in 24h — YES now at ${bigMover.yesPrice}¢. Worth a look.`,
       route: "/(tabs)/index",
-      urgent: Math.abs(bigMover.change24h) >= 8,
+      urgent: Math.abs(bigMover.change24h) >= priceMoveThresholdCents,
       createdAt: Date.now(),
     };
   }
@@ -263,6 +265,7 @@ function pickAlert(
 export const [NotificationProvider, useNotifications] = createContextHook(() => {
   const { user } = useApp();
   const { markets } = useMarkets();
+  const { config } = useAdminConfig();
 
   const [current, setCurrent] = useState<InAppNotification | null>(null);
   const shownKeys = useRef<Set<string>>(new Set());
@@ -279,25 +282,29 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   const relaySms = useCallback(
     (notif: InAppNotification) => {
-      // Only relay urgent/breaking alerts to opted-in users with a synced contact
+      if (!config.sms.enabled) return;
       if (!user.smsOptedIn || !user.ghlContactId) return;
-      if (!notif.urgent && notif.kind !== "breaking") return;
+      const qualifiesUrgent = config.sms.sendUrgent && !!notif.urgent;
+      const qualifiesBreaking = config.sms.sendBreaking && notif.kind === "breaking";
+      const qualifiesPriceMove = config.sms.sendPriceMoves && notif.kind === "trade" && !!notif.urgent;
+      if (!qualifiesUrgent && !qualifiesBreaking && !qualifiesPriceMove) return;
       const msg = formatSmsAlert(notif.title, notif.body);
       sendSms(user.ghlContactId, msg).catch((e) =>
         console.log("[SMS] relay error", e),
       );
       console.log("[SMS] relayed alert", notif.title.slice(0, 40));
     },
-    [user.smsOptedIn, user.ghlContactId],
+    [user.smsOptedIn, user.ghlContactId, config.sms],
   );
 
   const scheduleNext = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    // Fire next between 65s and 130s
-    const delay = 65_000 + Math.random() * 65_000;
+    const minMs = Math.max(5, config.sms.repeatMinSeconds) * 1000;
+    const maxMs = Math.max(config.sms.repeatMinSeconds, config.sms.repeatMaxSeconds) * 1000;
+    const delay = minMs + Math.random() * Math.max(0, maxMs - minMs);
     timerRef.current = setTimeout(() => {
-      if (sentCount.current >= 6) return; // cap per session
-      const notif = pickAlert(markets, shownKeys.current);
+      if (sentCount.current >= config.sms.maxPerSession) return;
+      const notif = pickAlert(markets, shownKeys.current, config.sms.priceMoveThresholdCents);
       if (!notif) return;
       shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
       sentCount.current += 1;
@@ -305,26 +312,26 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       relaySms(notif);
       scheduleNext();
     }, delay);
-  }, [markets, relaySms]);
+  }, [markets, relaySms, config.sms]);
 
   // Boot: fire first notification ~35-45s after user is onboarded
   useEffect(() => {
     if (!user.onboarded) return;
     const boot = setTimeout(() => {
-      if (sentCount.current >= 6) return;
-      const notif = pickAlert(markets, shownKeys.current);
+      if (sentCount.current >= config.sms.maxPerSession) return;
+      const notif = pickAlert(markets, shownKeys.current, config.sms.priceMoveThresholdCents);
       if (!notif) return;
       shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
       sentCount.current += 1;
       setCurrent(notif);
       relaySms(notif);
       scheduleNext();
-    }, 35_000 + Math.random() * 10_000);
+    }, Math.max(5, config.sms.firstDelaySeconds) * 1000 + Math.random() * 10_000);
 
     return () => clearTimeout(boot);
   // Only run once after onboarding
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.onboarded, relaySms]);
+  }, [user.onboarded, relaySms, config.sms.firstDelaySeconds, config.sms.maxPerSession, config.sms.priceMoveThresholdCents]);
 
   // Cleanup on unmount
   useEffect(() => {
