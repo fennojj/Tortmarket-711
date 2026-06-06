@@ -1,14 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   View,
   Platform,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { MessageSquare } from "lucide-react-native";
+import { useApp } from "@/providers/AppProvider";
+import { syncContact } from "@/utils/sms";
 
 interface NDAModalProps {
   visible: boolean;
@@ -120,10 +126,37 @@ export default function NDAModal({
   onClose,
   onAgree,
 }: NDAModalProps): React.ReactElement {
-  const handleAgree = () => {
+  const { setPhoneNumber, setSmsOptedIn, setGhlContactId } = useApp();
+  const [phone, setPhone] = useState<string>("");
+  const [smsOptIn, setSmsOptIn] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
+
+  const handleAgree = async () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
+
+    // If user opted in with a valid phone, sync with GHL in background
+    const cleaned = phone.replace(/\D/g, "");
+    if (smsOptIn && cleaned.length >= 10) {
+      setSyncing(true);
+      try {
+        setPhoneNumber(cleaned);
+        setSmsOptedIn(true);
+        const result = await syncContact(cleaned);
+        if (result.ok && result.contactId) {
+          setGhlContactId(result.contactId);
+          console.log("[SMS] contact synced on NDA agree", result.contactId.slice(0, 8));
+        } else {
+          console.log("[SMS] syncContact failed", result.error);
+        }
+      } catch (e) {
+        console.log("[SMS] sync error on agree", e);
+      } finally {
+        setSyncing(false);
+      }
+    }
+
     onAgree();
   };
 
@@ -155,12 +188,51 @@ export default function NDAModal({
             </ScrollView>
           </View>
 
+          {/* SMS opt-in — shown below NDA scroll box */}
+          <View style={styles.smsSection}>
+            <View style={styles.smsRow}>
+              <View style={styles.smsIconWrap}>
+                <MessageSquare size={15} color="#1D4ED8" />
+              </View>
+              <View style={styles.smsCopy}>
+                <Text style={styles.smsLabel}>Get trade alerts & breaking news via text</Text>
+                <Text style={styles.smsHint}>Optional · Reply STOP anytime to cancel</Text>
+              </View>
+              <Switch
+                value={smsOptIn}
+                onValueChange={setSmsOptIn}
+                trackColor={{ false: "#E5E7EB", true: "#1D4ED8" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {smsOptIn ? (
+              <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="(555) 867-5309"
+                placeholderTextColor="rgba(11,18,32,0.35)"
+                style={styles.phoneInput}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                returnKeyType="done"
+                maxLength={14}
+                testID="nda-phone"
+              />
+            ) : null}
+          </View>
+
           <Pressable
             onPress={handleAgree}
-            style={styles.cta}
+            style={[styles.cta, syncing && styles.ctaDisabled]}
+            disabled={syncing}
             testID="nda-agree"
           >
-            <Text style={styles.ctaText}>I Agree & Enter</Text>
+            {syncing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.ctaText}>I Agree & Enter</Text>
+            )}
           </Pressable>
         </Pressable>
       </Pressable>
@@ -175,13 +247,13 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    height: "60%",
+    maxHeight: "75%",
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 22,
     paddingTop: 10,
-    paddingBottom: 24,
+    paddingBottom: 28,
   },
   grabber: {
     alignSelf: "center",
@@ -207,7 +279,7 @@ const styles = StyleSheet.create({
   },
   scrollBox: {
     flex: 1,
-    minHeight: 200,
+    minHeight: 180,
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.12)",
     borderRadius: 14,
@@ -222,8 +294,54 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: "500",
   },
+  smsSection: {
+    marginTop: 12,
+    gap: 8,
+  },
+  smsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  smsIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smsCopy: { flex: 1 },
+  smsLabel: {
+    color: "#1E3A8A",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  smsHint: {
+    color: "rgba(30,58,138,0.6)",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  phoneInput: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#93C5FD",
+    backgroundColor: "#F0F9FF",
+    paddingHorizontal: 16,
+    color: "#0B1220",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   cta: {
-    marginTop: 14,
+    marginTop: 12,
     alignSelf: "stretch",
     height: 56,
     borderRadius: 18,
@@ -231,6 +349,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  ctaDisabled: { opacity: 0.6 },
   ctaText: {
     color: "#FFFFFF",
     fontSize: 16,

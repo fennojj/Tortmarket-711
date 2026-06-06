@@ -2,6 +2,7 @@ import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/providers/AppProvider";
 import { useMarkets } from "@/providers/MarketsProvider";
+import { sendSms, formatSmsAlert } from "@/utils/sms";
 
 export interface InAppNotification {
   id: string;
@@ -276,6 +277,20 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     setCurrent(notif);
   }, []);
 
+  const relaySms = useCallback(
+    (notif: InAppNotification) => {
+      // Only relay urgent/breaking alerts to opted-in users with a synced contact
+      if (!user.smsOptedIn || !user.ghlContactId) return;
+      if (!notif.urgent && notif.kind !== "breaking") return;
+      const msg = formatSmsAlert(notif.title, notif.body);
+      sendSms(user.ghlContactId, msg).catch((e) =>
+        console.log("[SMS] relay error", e),
+      );
+      console.log("[SMS] relayed alert", notif.title.slice(0, 40));
+    },
+    [user.smsOptedIn, user.ghlContactId],
+  );
+
   const scheduleNext = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     // Fire next between 65s and 130s
@@ -287,9 +302,10 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
       sentCount.current += 1;
       setCurrent(notif);
+      relaySms(notif);
       scheduleNext();
     }, delay);
-  }, [markets]);
+  }, [markets, relaySms]);
 
   // Boot: fire first notification ~35-45s after user is onboarded
   useEffect(() => {
@@ -301,13 +317,14 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
       sentCount.current += 1;
       setCurrent(notif);
+      relaySms(notif);
       scheduleNext();
     }, 35_000 + Math.random() * 10_000);
 
     return () => clearTimeout(boot);
   // Only run once after onboarding
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.onboarded]);
+  }, [user.onboarded, relaySms]);
 
   // Cleanup on unmount
   useEffect(() => {
