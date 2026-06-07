@@ -9,7 +9,7 @@ import { useApp } from "@/providers/AppProvider";
 
 export default function LaunchProgress(): React.ReactElement {
   const router = useRouter();
-  const { user } = useApp();
+  const { user, recruitingConfig } = useApp();
   const [tick, setTick] = useState<number>(0);
   const widthAnim = useRef(new Animated.Value(0)).current;
 
@@ -19,8 +19,8 @@ export default function LaunchProgress(): React.ReactElement {
   }, []);
 
   const progress = useMemo(
-    () => getLaunchProgress(user.referralCount ?? 0),
-    [user.referralCount, tick],
+    () => getLaunchProgress(user.referralCount ?? 0, recruitingConfig.goalMembers),
+    [user.referralCount, recruitingConfig.goalMembers, tick],
   );
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function LaunchProgress(): React.ReactElement {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>FOUNDING MEMBER PUSH</Text>
-            <Text style={styles.title}>Race to 5,000 members</Text>
+            <Text style={styles.title}>Race to {recruitingConfig.goalMembers.toLocaleString()} members</Text>
           </View>
           <View style={styles.cta}>
             <Text style={styles.ctaText}>Invite →</Text>
@@ -88,9 +88,9 @@ export default function LaunchProgress(): React.ReactElement {
             <Trophy size={13} color="#0B1220" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.prizeTitle}>Member #5,000 Earns the Founder Recognition Tier</Text>
+            <Text style={styles.prizeTitle}>Member #{recruitingConfig.goalMembers.toLocaleString()} Earns the Founder Recognition Tier</Text>
             <Text style={styles.prizeBody}>
-              The 5,000th member receives 1,000,000 pts + a lifetime Founder badge. No purchase necessary. Void where prohibited.
+              The {recruitingConfig.goalMembers.toLocaleString()}th member receives 1,000,000 pts + a lifetime Founder badge. No purchase necessary. Void where prohibited.
             </Text>
           </View>
         </View>

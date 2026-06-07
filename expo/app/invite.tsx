@@ -37,19 +37,17 @@ import {
   Zap,
 } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
-import { SHARE_BONUS, useApp } from "@/providers/AppProvider";
+import { useApp } from "@/providers/AppProvider";
 import {
   EXPO_GO_ANDROID_URL,
   EXPO_GO_IOS_URL,
   getInviteMessage,
   getInviteUrl,
   getLaunchProgress,
-  REFERRAL_BONUS_INVITEE,
-  REFERRAL_BONUS_INVITER,
 } from "@/utils/referrals";
 
 export default function InviteScreen(): React.ReactElement {
-  const { user, creditOwnReferral, claimShareBonus } = useApp();
+  const { user, creditOwnReferral, claimShareBonus, rewardConfig, recruitingConfig } = useApp();
   const [copied, setCopied] = useState<boolean>(false);
 
   const tryAwardShareBonus = useCallback(() => {
@@ -57,19 +55,22 @@ export default function InviteScreen(): React.ReactElement {
     const res = claimShareBonus();
     if (res.ok) {
       Alert.alert(
-        "+" + SHARE_BONUS.toLocaleString() + " pts",
+        "+" + rewardConfig.shareBonusPoints.toLocaleString() + " pts",
         "Founder Share Bonus unlocked. Thanks for spreading the word.",
       );
     }
-  }, [user.shareBonusClaimed, claimShareBonus]);
+  }, [user.shareBonusClaimed, claimShareBonus, rewardConfig.shareBonusPoints]);
 
   const code = user.referralCode ?? "TORTSITE";
   const url = useMemo(() => getInviteUrl(code), [code]);
-  const message = useMemo(() => getInviteMessage(code, user.handle), [code, user.handle]);
+  const message = useMemo(
+    () => getInviteMessage(code, user.handle, recruitingConfig.inviteeBonusPoints),
+    [code, user.handle, recruitingConfig.inviteeBonusPoints],
+  );
 
   const progress = useMemo(
-    () => getLaunchProgress(user.referralCount ?? 0),
-    [user.referralCount],
+    () => getLaunchProgress(user.referralCount ?? 0, recruitingConfig.goalMembers),
+    [user.referralCount, recruitingConfig.goalMembers],
   );
 
   const handleCopy = useCallback(async () => {
@@ -198,12 +199,12 @@ export default function InviteScreen(): React.ReactElement {
         >
           <View style={styles.heroBadge}>
             <Rocket size={11} color="#fff" />
-            <Text style={styles.heroBadgeText}>5,000 FOUNDER PUSH</Text>
+            <Text style={styles.heroBadgeText}>{recruitingConfig.goalMembers.toLocaleString()} FOUNDER PUSH</Text>
           </View>
           <Text style={styles.heroTitle}>Bring the next trader.</Text>
           <Text style={styles.heroSub}>
-            Earn {REFERRAL_BONUS_INVITER.toLocaleString()} pts for every friend who joins. They get
-            +{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus on top of their welcome stack.
+            Earn {recruitingConfig.inviterBonusPoints.toLocaleString()} pts for every friend who joins. They get
+            +{recruitingConfig.inviteeBonusPoints.toLocaleString()} bonus on top of their welcome stack.
           </Text>
 
           <View style={styles.prize5kCard} testID="prize-5000-card">
@@ -211,8 +212,8 @@ export default function InviteScreen(): React.ReactElement {
               <Trophy size={16} color="#0B1220" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.prize5kEyebrow}>TRADER #5,000 PRIZE</Text>
-              <Text style={styles.prize5kTitle}>Be the exact 5,000th signup.</Text>
+              <Text style={styles.prize5kEyebrow}>TRADER #{recruitingConfig.goalMembers.toLocaleString()} PRIZE</Text>
+              <Text style={styles.prize5kTitle}>Be the exact {recruitingConfig.goalMembers.toLocaleString()}th signup.</Text>
               <Text style={styles.prize5kBody}>
                 Win 1,000,000 pts, a lifetime Founder badge, and a case of bourbon shipped to the bar conference. Time it right — watch the counter live.
               </Text>
@@ -269,7 +270,7 @@ export default function InviteScreen(): React.ReactElement {
           <View style={{ flex: 1 }}>
             <Text style={styles.giftEyebrow}>SEND A GIFT</Text>
             <Text style={styles.giftTitle}>
-              +{REFERRAL_BONUS_INVITEE.toLocaleString()} pts for your friend
+              +{recruitingConfig.inviteeBonusPoints.toLocaleString()} pts for your friend
             </Text>
             <Text style={styles.giftBody}>
               When they sign up with your link, you both get credited automatically.
@@ -294,8 +295,8 @@ export default function InviteScreen(): React.ReactElement {
             </Text>
             <Text style={styles.shareBonusTitle}>
               {user.shareBonusClaimed
-                ? `+${SHARE_BONUS.toLocaleString()} pts already credited`
-                : `+${SHARE_BONUS.toLocaleString()} pts the moment you share`}
+                ? `+${rewardConfig.shareBonusPoints.toLocaleString()} pts already credited`
+                : `+${rewardConfig.shareBonusPoints.toLocaleString()} pts the moment you share`}
             </Text>
             <Text style={styles.shareBonusBody}>
               {user.shareBonusClaimed
@@ -345,7 +346,7 @@ export default function InviteScreen(): React.ReactElement {
           <View style={styles.zeroFrictionSteps}>
             <Step n={1} title="They tap your link" body="Opens in Safari / Chrome — nothing to install." />
             <Step n={2} title="Pick a handle" body="One field, no email, no password. They’re trading in 10 seconds." />
-            <Step n={3} title="You both earn" body={`+${REFERRAL_BONUS_INVITEE.toLocaleString()} pts for them, +${REFERRAL_BONUS_INVITER.toLocaleString()} pts for you, automatic.`} />
+            <Step n={3} title="You both earn" body={`+${recruitingConfig.inviteeBonusPoints.toLocaleString()} pts for them, +${recruitingConfig.inviterBonusPoints.toLocaleString()} pts for you, automatic.`} />
           </View>
         </View>
 
@@ -394,8 +395,8 @@ export default function InviteScreen(): React.ReactElement {
         <View style={styles.howRow}>
           <Text style={styles.howTitle}>How rewards work</Text>
           <Step n={1} title="Share your link" body="Send via text, X, Reddit, or any group chat." />
-          <Step n={2} title="They sign up" body={`Friend joins via your link, gets +${REFERRAL_BONUS_INVITEE.toLocaleString()} bonus pts.`} />
-          <Step n={3} title="You earn" body={`+${REFERRAL_BONUS_INVITER.toLocaleString()} pts each, climbing the leaderboard fast.`} />
+          <Step n={2} title="They sign up" body={`Friend joins via your link, gets +${recruitingConfig.inviteeBonusPoints.toLocaleString()} bonus pts.`} />
+          <Step n={3} title="You earn" body={`+${recruitingConfig.inviterBonusPoints.toLocaleString()} pts each, climbing the leaderboard fast.`} />
         </View>
 
         <View style={styles.legal}>

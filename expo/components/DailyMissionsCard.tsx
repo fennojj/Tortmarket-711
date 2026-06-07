@@ -1,13 +1,11 @@
 import React, { useCallback, useMemo } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { CheckCircle2, Circle, TrendingUp, MessageSquare, Gift, Users, Zap } from "lucide-react-native";
+import { CheckCircle2, TrendingUp, MessageSquare, Gift, Users, Zap } from "lucide-react-native";
 import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { useEngagement } from "@/providers/EngagementProvider";
 import { useApp } from "@/providers/AppProvider";
-
-const MISSIONS_BONUS = 1000;
 
 interface Mission {
   id: string;
@@ -20,8 +18,8 @@ interface Mission {
 }
 
 export default function DailyMissionsCard(): React.ReactElement | null {
-  const { todayStats, track } = useEngagement();
-  const { user, canClaimDaily, claimMissionsBonus } = useApp();
+  const { todayStats } = useEngagement();
+  const { user, canClaimDaily, claimMissionsBonus, rewardConfig } = useApp();
 
   const missionsBonusClaimedToday = useMemo(() => {
     if (!user.lastMissionsBonusAt) return false;
@@ -85,7 +83,7 @@ export default function DailyMissionsCard(): React.ReactElement | null {
           <Users size={15} color={Colors.blue} />
           <Text style={styles.title}>Daily Missions</Text>
           <View style={styles.bonusPill}>
-            <Text style={styles.bonusPillText}>+{MISSIONS_BONUS.toLocaleString()} pts bonus</Text>
+            <Text style={styles.bonusPillText}>+{rewardConfig.missionsBonusPoints.toLocaleString()} pts bonus</Text>
           </View>
         </View>
         <Text style={styles.progressLabel}>
@@ -135,7 +133,7 @@ export default function DailyMissionsCard(): React.ReactElement | null {
           ) : (
             <>
               <Zap size={15} color="#fff" />
-              <Text style={styles.claimBtnText}>Claim {MISSIONS_BONUS.toLocaleString()} bonus pts</Text>
+              <Text style={styles.claimBtnText}>Claim {rewardConfig.missionsBonusPoints.toLocaleString()} bonus pts</Text>
             </>
           )}
         </Pressable>

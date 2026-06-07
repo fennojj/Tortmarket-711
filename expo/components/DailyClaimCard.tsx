@@ -3,7 +3,7 @@ import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-nat
 import * as Haptics from "expo-haptics";
 import { Flame, Gift, ShieldCheck, Crown, Gem } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
-import { DAILY_BASE_REWARD, useApp } from "@/providers/AppProvider";
+import { useApp } from "@/providers/AppProvider";
 
 function usePulse(active: boolean): Animated.Value {
   const anim = useRef(new Animated.Value(1)).current;
@@ -53,18 +53,19 @@ function getStreakMilestone(streak: number): { label: string; icon: React.ReactE
 }
 
 export default function DailyClaimCard(): React.ReactElement {
-  const { user, canClaimDaily, claimDaily } = useApp();
+  const { user, canClaimDaily, claimDaily, rewardConfig } = useApp();
   const streak = user.streakDays ?? 0;
   const [justClaimed, setJustClaimed] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<string>("");
 
   const isAtRisk = canClaimDaily && streak > 0;
 
+  const streakCapDays = Math.max(1, rewardConfig.dailyStreakCapDays);
   const nextReward = useMemo(() => {
-    const nextStreak = canClaimDaily ? Math.min((streak ?? 0) + 1, 7) : streak;
-    const bonus = Math.min(Math.max(nextStreak - 1, 0), 6) * 250;
-    return DAILY_BASE_REWARD + bonus;
-  }, [canClaimDaily, streak]);
+    const nextStreak = canClaimDaily ? Math.min((streak ?? 0) + 1, streakCapDays) : streak;
+    const bonus = Math.min(Math.max(nextStreak - 1, 0), streakCapDays - 1) * rewardConfig.dailyStreakStepPoints;
+    return rewardConfig.dailyBasePoints + bonus;
+  }, [canClaimDaily, streak, streakCapDays, rewardConfig.dailyBasePoints, rewardConfig.dailyStreakStepPoints]);
 
   // Countdown to next day midnight when already claimed
   useEffect(() => {
@@ -147,7 +148,7 @@ export default function DailyClaimCard(): React.ReactElement {
           {canClaimDaily ? (
             <Text style={styles.sub}>
               Claim <Text style={styles.subHighlight}>{nextReward.toLocaleString()} pts</Text>
-              {streak > 0 ? ` · ${streak + 1 > 7 ? "max" : `day ${streak + 1}`} streak bonus` : " · start your streak"}
+              {streak > 0 ? ` · ${streak + 1 > streakCapDays ? "max" : `day ${streak + 1}`} streak bonus` : " · start your streak"}
             </Text>
           ) : (
             <Text style={styles.sub}>
@@ -176,13 +177,13 @@ export default function DailyClaimCard(): React.ReactElement {
 
       {streak >= 2 && (
         <View style={styles.streakRow}>
-          {Array.from({ length: Math.min(streak, 7) }).map((_, i) => (
+          {Array.from({ length: Math.min(streak, streakCapDays) }).map((_, i) => (
             <View key={i} style={[styles.streakDot, i < streak && styles.streakDotFilled]} />
           ))}
-          {streak < 7 && Array.from({ length: 7 - streak }).map((_, i) => (
+          {streak < streakCapDays && Array.from({ length: streakCapDays - streak }).map((_, i) => (
             <View key={`empty-${i}`} style={styles.streakDot} />
           ))}
-          <Text style={styles.streakGoal}>{streak >= 7 ? "MAX STREAK" : `${7 - streak} more for max bonus`}</Text>
+          <Text style={styles.streakGoal}>{streak >= streakCapDays ? "MAX STREAK" : `${streakCapDays - streak} more for max bonus`}</Text>
         </View>
       )}
     </View>

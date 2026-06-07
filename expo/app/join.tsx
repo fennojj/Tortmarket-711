@@ -17,10 +17,7 @@ import * as Haptics from "expo-haptics";
 import { Gift, Sparkles, Trophy, Users, Zap } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
-import {
-  REFERRAL_BONUS_INVITEE,
-  normalizeRefCode,
-} from "@/utils/referrals";
+import { normalizeRefCode } from "@/utils/referrals";
 import { getOrAssignJoinVariant, type JoinVariant } from "@/utils/abTest";
 import JoinSponsorReel from "@/components/JoinSponsorReel";
 import NDAModal from "@/components/NDAModal";
@@ -39,7 +36,7 @@ function autoHandleFromEmail(email: string): string {
 export default function JoinScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ ref?: string; v?: string }>();
-  const { user, pendingRef, applyPendingRef, registerUser } = useApp();
+  const { user, pendingRef, applyPendingRef, registerUser, rewardConfig, recruitingConfig } = useApp();
 
   const incomingCode = useMemo(
     () => normalizeRefCode(typeof params.ref === "string" ? params.ref : null),
@@ -181,7 +178,7 @@ export default function JoinScreen(): React.ReactElement {
             </Animated.View>
 
             <Text style={styles.titleB}>
-              +{REFERRAL_BONUS_INVITEE.toLocaleString()} pts
+              +{recruitingConfig.inviteeBonusPoints.toLocaleString()} pts
             </Text>
             <Text style={styles.subtitleB}>
               Drop your email. Claim instantly.
@@ -263,11 +260,11 @@ export default function JoinScreen(): React.ReactElement {
           </View>
 
           <Text style={styles.title}>
-            +{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points
+            +{recruitingConfig.inviteeBonusPoints.toLocaleString()} bonus points
           </Text>
           <Text style={styles.subtitle}>
             A friend invited you to Tort Market — the prediction market for mass tort cases.
-            Their gift stacks on top of your 25,000 welcome bonus.
+            Their gift stacks on top of your {rewardConfig.welcomeBonusPoints.toLocaleString()} welcome bonus.
           </Text>
 
           {code ? (
@@ -278,7 +275,11 @@ export default function JoinScreen(): React.ReactElement {
           ) : null}
 
           <View style={styles.statsRow}>
-            <Stat icon={<Zap size={14} color="#FDE68A" />} value="30,000" label="total points" />
+            <Stat
+              icon={<Zap size={14} color="#FDE68A" />}
+              value={(rewardConfig.welcomeBonusPoints + recruitingConfig.inviteeBonusPoints).toLocaleString()}
+              label="total points"
+            />
             <View style={styles.statDivider} />
             <Stat icon={<Trophy size={14} color="#FDE68A" />} value="70+" label="live markets" />
             <View style={styles.statDivider} />

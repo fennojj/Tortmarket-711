@@ -44,12 +44,12 @@ export function getInviteAppDeepLink(code: string): string {
 export const EXPO_GO_IOS_URL = "https://apps.apple.com/app/expo-go/id982107779";
 export const EXPO_GO_ANDROID_URL = "https://play.google.com/store/apps/details?id=host.exp.exponent";
 
-export function getInviteMessage(code: string, handle: string): string {
+export function getInviteMessage(code: string, handle: string, inviteeBonusPoints: number = REFERRAL_BONUS_INVITEE): string {
   const url = getInviteUrl(code);
   return [
     `${handle} invited you to Tort Market — the prediction market for mass tort cases.`,
     "",
-    `Tap the link, claim ${REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points, and trade 70+ live MDL cases (Roundup, PFAS, Depo-Provera, Camp Lejeune, more). No install, no signup wall — opens straight in your browser.`,
+    `Tap the link, claim ${inviteeBonusPoints.toLocaleString()} bonus points, and trade 70+ live MDL cases (Roundup, PFAS, Depo-Provera, Camp Lejeune, more). No install, no signup wall — opens straight in your browser.`,
     "",
     url,
   ].join("\n");
@@ -67,20 +67,21 @@ export function parseRefFromUrl(url: string | null | undefined): string | null {
   }
 }
 
-export function getLaunchProgress(realMembers: number): {
+export function getLaunchProgress(realMembers: number, goalMembers: number = LAUNCH_GOAL): {
   total: number;
   goal: number;
   pct: number;
   remaining: number;
 } {
+  const goal = Math.max(1, goalMembers);
   const elapsedHours = Math.max(0, (Date.now() - LAUNCH_PROGRESS_START) / 3_600_000);
   const baseGrowth = Math.floor(elapsedHours * 7);
-  const total = Math.min(LAUNCH_GOAL, LAUNCH_BASE_MEMBERS + baseGrowth + Math.max(0, realMembers));
-  const pct = Math.min(1, total / LAUNCH_GOAL);
+  const total = Math.min(goal, LAUNCH_BASE_MEMBERS + baseGrowth + Math.max(0, realMembers));
+  const pct = Math.min(1, total / goal);
   return {
     total,
-    goal: LAUNCH_GOAL,
+    goal,
     pct,
-    remaining: Math.max(0, LAUNCH_GOAL - total),
+    remaining: Math.max(0, goal - total),
   };
 }

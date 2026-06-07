@@ -51,7 +51,7 @@ import {
   supabaseEnabled,
   type SignupRow,
 } from "@/lib/supabase";
-import { getInviteUrl, LAUNCH_GOAL } from "@/utils/referrals";
+import { getInviteUrl } from "@/utils/referrals";
 import SponsorSlot from "@/components/SponsorSlot";
 import type { SponsorSlotTier } from "@/constants/sponsors";
 
@@ -153,6 +153,7 @@ function TabPill({
 // ─── CAMPAIGN TAB ───────────────────────────────────────────────────────────
 function CampaignTab() {
   const { user } = useApp();
+  const { config } = useAdminConfig();
   const [shareBusy, setShareBusy] = useState<boolean>(false);
 
   const statsQuery = useQuery({
@@ -180,7 +181,7 @@ function CampaignTab() {
   const recent = recentQuery.data ?? [];
   const top = topQuery.data ?? [];
 
-  const goal = LAUNCH_GOAL;
+  const goal = config.recruiting.goalMembers;
   const pct = Math.min(1, stats.total / goal);
   const remaining = Math.max(0, goal - stats.total);
   const ratePerHour = stats.last24h / 24;
@@ -193,7 +194,7 @@ function CampaignTab() {
     setShareBusy(true);
     try {
       await Share.share({
-        message: `Join Tort Market — +5,000 bonus points: ${inviteUrl}`,
+        message: `Join Tort Market — +${config.recruiting.inviteeBonusPoints.toLocaleString()} bonus points: ${inviteUrl}`,
       });
     } catch (_) {
     } finally {
@@ -375,6 +376,155 @@ function csv(v: string): string {
     return `"${v.replace(/"/g, "\"\"")}"`;
   }
   return v;
+}
+
+// ─── GROWTH RULES TAB ───────────────────────────────────────────────────────
+function GrowthRulesTab(): React.ReactElement {
+  const { config, updateSection, resetConfig } = useAdminConfig();
+
+  const updateSms = <K extends keyof typeof config.sms>(key: K, value: (typeof config.sms)[K]) => {
+    updateSection("sms", { ...config.sms, [key]: value });
+  };
+  const updateRecruiting = <K extends keyof typeof config.recruiting>(key: K, value: (typeof config.recruiting)[K]) => {
+    updateSection("recruiting", { ...config.recruiting, [key]: value });
+  };
+  const updateRewards = <K extends keyof typeof config.rewards>(key: K, value: (typeof config.rewards)[K]) => {
+    updateSection("rewards", { ...config.rewards, [key]: value });
+  };
+  const updateCampaigns = <K extends keyof typeof config.campaigns>(key: K, value: (typeof config.campaigns)[K]) => {
+    updateSection("campaigns", { ...config.campaigns, [key]: value });
+  };
+  const updateSponsorLevel = <K extends keyof typeof config.sponsorLevel>(key: K, value: (typeof config.sponsorLevel)[K]) => {
+    updateSection("sponsorLevel", { ...config.sponsorLevel, [key]: value });
+  };
+
+  const updateSponsorMarketIds = (raw: string) => {
+    const ids = raw
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    updateRewards("sponsorTradeBonusMarketIds", ids);
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={80}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.statusCard}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <SlidersHorizontal size={15} color={Colors.blue} />
+            <Text style={styles.statusTitle}>Growth control center</Text>
+          </View>
+          <Text style={styles.sectionHint}>
+            Tune SMS alerts, the recruiting goal, trade rewards, sponsor-funded boosts, and automated campaign thresholds without changing code.
+          </Text>
+          <View style={styles.actionRow}>
+            <Pressable style={[styles.btn, styles.btnGhost]} onPress={resetConfig}>
+              <RefreshCw size={14} color={Colors.text} />
+              <Text style={[styles.btnText, { color: Colors.text }]}>Reset defaults</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>SMS triggers</Text>
+        <ToggleRule label="Enable SMS relay" value={config.sms.enabled} onChange={(v) => updateSms("enabled", v)} />
+        <ToggleRule label="Breaking news alerts" value={config.sms.sendBreaking} onChange={(v) => updateSms("sendBreaking", v)} />
+        <ToggleRule label="Urgent alerts" value={config.sms.sendUrgent} onChange={(v) => updateSms("sendUrgent", v)} />
+        <ToggleRule label="Price move alerts" value={config.sms.sendPriceMoves} onChange={(v) => updateSms("sendPriceMoves", v)} />
+        <NumberField label="Price move threshold (¢)" value={config.sms.priceMoveThresholdCents} onChange={(v) => updateSms("priceMoveThresholdCents", v)} />
+        <NumberField label="Max texts per session" value={config.sms.maxPerSession} onChange={(v) => updateSms("maxPerSession", v)} />
+        <NumberField label="First alert delay (seconds)" value={config.sms.firstDelaySeconds} onChange={(v) => updateSms("firstDelaySeconds", v)} />
+        <NumberField label="Repeat min (seconds)" value={config.sms.repeatMinSeconds} onChange={(v) => updateSms("repeatMinSeconds", v)} />
+        <NumberField label="Repeat max (seconds)" value={config.sms.repeatMaxSeconds} onChange={(v) => updateSms("repeatMaxSeconds", v)} />
+
+        <Text style={styles.sectionTitle}>Recruiting 5,000 members</Text>
+        <NumberField label="Recruiting goal" value={config.recruiting.goalMembers} onChange={(v) => updateRecruiting("goalMembers", v)} />
+        <NumberField label="Inviter bonus points" value={config.recruiting.inviterBonusPoints} onChange={(v) => updateRecruiting("inviterBonusPoints", v)} />
+        <NumberField label="Invitee bonus points" value={config.recruiting.inviteeBonusPoints} onChange={(v) => updateRecruiting("inviteeBonusPoints", v)} />
+        <ToggleRule label="Zero-invite nudges" value={config.recruiting.zeroInviteNudgeEnabled} onChange={(v) => updateRecruiting("zeroInviteNudgeEnabled", v)} />
+        <ToggleRule label="Near-tier nudges" value={config.recruiting.nearTierNudgeEnabled} onChange={(v) => updateRecruiting("nearTierNudgeEnabled", v)} />
+        <ToggleRule label="Rival-passed nudges" value={config.recruiting.rivalPassedNudgeEnabled} onChange={(v) => updateRecruiting("rivalPassedNudgeEnabled", v)} />
+
+        <Text style={styles.sectionTitle}>Player rewards</Text>
+        <NumberField label="Daily base points" value={config.rewards.dailyBasePoints} onChange={(v) => updateRewards("dailyBasePoints", v)} />
+        <NumberField label="Daily streak step points" value={config.rewards.dailyStreakStepPoints} onChange={(v) => updateRewards("dailyStreakStepPoints", v)} />
+        <NumberField label="Daily streak cap days" value={config.rewards.dailyStreakCapDays} onChange={(v) => updateRewards("dailyStreakCapDays", v)} />
+        <NumberField label="Welcome bonus points" value={config.rewards.welcomeBonusPoints} onChange={(v) => updateRewards("welcomeBonusPoints", v)} />
+        <NumberField label="Share bonus points" value={config.rewards.shareBonusPoints} onChange={(v) => updateRewards("shareBonusPoints", v)} />
+        <NumberField label="Mission bonus points" value={config.rewards.missionsBonusPoints} onChange={(v) => updateRewards("missionsBonusPoints", v)} />
+        <ToggleRule label="Trade XP enabled" value={config.rewards.tradeXpEnabled} onChange={(v) => updateRewards("tradeXpEnabled", v)} />
+        <NumberField label="Trade XP per 1,000 pts spent" value={config.rewards.tradeXpPerThousandPoints} onChange={(v) => updateRewards("tradeXpPerThousandPoints", v)} />
+        <NumberField label="First trade bonus points" value={config.rewards.firstTradeBonusPoints} onChange={(v) => updateRewards("firstTradeBonusPoints", v)} />
+
+        <Text style={styles.sectionTitle}>Sponsor-funded trade boosts</Text>
+        <ToggleRule label="Enable special sponsor level" value={config.sponsorLevel.enabled} onChange={(v) => updateSponsorLevel("enabled", v)} />
+        <Field label="Sponsor name" value={config.sponsorLevel.sponsorName} onChange={(v) => updateSponsorLevel("sponsorName", v)} placeholder="Smith & Jones LLP" />
+        <Field label="Level name" value={config.sponsorLevel.levelName} onChange={(v) => updateSponsorLevel("levelName", v)} placeholder="Founding 5K Sponsor" />
+        <Field label="Minimum spend label" value={config.sponsorLevel.minimumSpendLabel} onChange={(v) => updateSponsorLevel("minimumSpendLabel", v)} placeholder="$25,000+" />
+        <NumberField label="Reward multiplier" value={config.sponsorLevel.rewardMultiplier} onChange={(v) => updateSponsorLevel("rewardMultiplier", v)} />
+        <ToggleRule label="Sponsor trade bonus" value={config.rewards.sponsorTradeBonusEnabled} onChange={(v) => updateRewards("sponsorTradeBonusEnabled", v)} />
+        <NumberField label="Sponsor trade bonus points" value={config.rewards.sponsorTradeBonusPoints} onChange={(v) => updateRewards("sponsorTradeBonusPoints", v)} />
+        <Field
+          label="Eligible market IDs (comma separated, blank = all)"
+          value={config.rewards.sponsorTradeBonusMarketIds.join(", ")}
+          onChange={updateSponsorMarketIds}
+          placeholder="pfas, talc, camp-lejeune"
+        />
+        <Field
+          label="Sponsor trigger copy"
+          value={config.sponsorLevel.tradeTriggerCopy}
+          onChange={(v) => updateSponsorLevel("tradeTriggerCopy", v)}
+          multiline
+        />
+
+        <Text style={styles.sectionTitle}>Campaign automation</Text>
+        <ToggleRule label="Enable automation" value={config.campaigns.enabled} onChange={(v) => updateCampaigns("enabled", v)} />
+        <ToggleRule label="Auto-launch default" value={config.campaigns.autoLaunchDefault} onChange={(v) => updateCampaigns("autoLaunchDefault", v)} />
+        <NumberField label="Whale play threshold" value={config.campaigns.whalePlayThresholdPoints} onChange={(v) => updateCampaigns("whalePlayThresholdPoints", v)} />
+        <NumberField label="Market mover threshold (¢)" value={config.campaigns.marketMoverThresholdCents} onChange={(v) => updateCampaigns("marketMoverThresholdCents", v)} />
+        <NumberField label="FOMO play count threshold" value={config.campaigns.fomoPlayCountThreshold} onChange={(v) => updateCampaigns("fomoPlayCountThreshold", v)} />
+        <NumberField label="Daily recap cadence (hours)" value={config.campaigns.dailyRecapHours} onChange={(v) => updateCampaigns("dailyRecapHours", v)} />
+        <NumberField label="Resolution move threshold (¢)" value={config.campaigns.resolutionMoveThresholdCents} onChange={(v) => updateCampaigns("resolutionMoveThresholdCents", v)} />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }): React.ReactElement {
+  const [text, setText] = useState<string>(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={text}
+        onChangeText={(raw) => {
+          const cleaned = raw.replace(/[^0-9.]/g, "");
+          setText(cleaned);
+          const parsed = Number(cleaned);
+          if (Number.isFinite(parsed)) onChange(parsed);
+        }}
+        keyboardType="numeric"
+        style={styles.input}
+      />
+    </View>
+  );
+}
+
+function ToggleRule({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }): React.ReactElement {
+  return (
+    <View style={styles.toggleRowCard}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Switch value={value} onValueChange={onChange} />
+    </View>
+  );
 }
 
 // ─── SPONSORS TAB ───────────────────────────────────────────────────────────
@@ -1366,4 +1516,64 @@ const styles = StyleSheet.create({
   },
   rateName: { color: Colors.text, fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
   ratePrice: { color: Colors.blue, fontSize: 12, fontWeight: "900" },
+  bigCount: { color: Colors.text, fontSize: 34, fontWeight: "900", letterSpacing: -1 },
+  bigCountSuffix: { color: Colors.textMuted, fontSize: 15, fontWeight: "800" },
+  progressTrack: {
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  progressFill: { height: "100%" as const, borderRadius: 999, backgroundColor: Colors.emerald },
+  progressMeta: { color: Colors.textMuted, fontSize: 11, fontWeight: "700" },
+  statGrid: { flexDirection: "row", gap: 8, marginTop: 10 },
+  statTile: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  statTileValue: { color: Colors.text, fontSize: 14, fontWeight: "900" },
+  statTileLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "800", marginTop: 2 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  csvBtn: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  csvText: { color: Colors.text, fontSize: 11, fontWeight: "800" },
+  inviteUrl: { color: Colors.blue, fontSize: 12, fontWeight: "800" },
+  signupRow: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  signupHandle: { color: Colors.text, fontSize: 13, fontWeight: "900" },
+  signupRef: { color: Colors.blue, fontSize: 11, fontWeight: "800" },
+  signupMeta: { color: Colors.textMuted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  toggleRowCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
 });

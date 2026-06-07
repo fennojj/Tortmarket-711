@@ -15,7 +15,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
 import { Gavel, Sparkles, ShieldCheck, X, TrendingUp, Trophy, Zap, Users, Gift } from "lucide-react-native";
-import { REFERRAL_BONUS_INVITEE } from "@/utils/referrals";
 
 const PRIVACY_URL = "https://tort-market.com/privacy";
 const TERMS_URL = "https://tort-market.com/terms";
@@ -35,6 +34,7 @@ function isValidEmail(v: string): boolean {
 }
 
 function ValuePropStep({ onNext }: { onNext: () => void }) {
+  const { rewardConfig } = useApp();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
@@ -80,7 +80,7 @@ function ValuePropStep({ onNext }: { onNext: () => void }) {
       <View style={styles.featureList}>
         <FeatureRow
           icon={<Zap size={15} color={Colors.orange} />}
-          title="25,000 starter points"
+          title={`${rewardConfig.welcomeBonusPoints.toLocaleString()} starter points`}
           body="Dropped instantly when you join. No purchase required."
         />
         <FeatureRow
@@ -117,7 +117,7 @@ function FeatureRow({ icon, title, body }: { icon: React.ReactNode; title: strin
 }
 
 function RegisterStep({ onBack }: { onBack: () => void }) {
-  const { registerUser, pendingRef } = useApp();
+  const { registerUser, pendingRef, rewardConfig, recruitingConfig } = useApp();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
@@ -170,7 +170,7 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
 
       <Text style={styles.title}>One last step</Text>
       <Text style={styles.subtitle}>
-        Just your email. Your 25,000 welcome bonus drops instantly. No password, no credit card.
+        Just your email. Your {rewardConfig.welcomeBonusPoints.toLocaleString()} welcome bonus drops instantly. No password, no credit card.
       </Text>
 
       {pendingRef ? (
@@ -180,7 +180,7 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.refTitle}>Invite code applied: {pendingRef}</Text>
-            <Text style={styles.refSub}>+{REFERRAL_BONUS_INVITEE.toLocaleString()} bonus points on top of your welcome bonus</Text>
+            <Text style={styles.refSub}>+{recruitingConfig.inviteeBonusPoints.toLocaleString()} bonus points on top of your welcome bonus</Text>
           </View>
         </View>
       ) : null}
@@ -210,7 +210,7 @@ function RegisterStep({ onBack }: { onBack: () => void }) {
         testID="onboarding-submit"
       >
         <Sparkles size={15} color="#fff" />
-        <Text style={styles.ctaText}>Join & Claim 25,000 pts</Text>
+        <Text style={styles.ctaText}>Join & Claim {rewardConfig.welcomeBonusPoints.toLocaleString()} pts</Text>
       </Pressable>
 
       <View style={styles.privacyRow}>
