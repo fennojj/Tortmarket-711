@@ -14,6 +14,13 @@ import {
 
 export type { ConnectionState, ConnectionQuality, LivePlayer, TradeBroadcast };
 
+export interface CapacityInfo {
+  estimate: number;
+  tierCap: number;
+  nearCapacity: boolean;
+  queueLength: number;
+}
+
 const PRESENCE_KEY_BASE = "tort-player";
 
 function buildPresenceKey(handle: string): string {
@@ -35,8 +42,15 @@ export const [RealtimeProvider, useRealtime] = createContextHook(() => {
   });
 
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
+  const [capacityInfo, setCapacityInfo] = useState<CapacityInfo>({
+    estimate: 0,
+    tierCap: 200,
+    nearCapacity: false,
+    queueLength: 0,
+  });
   const managerRef = useRef<RealtimeManager | null>(null);
   const unsubRef = useRef<Array<() => void>>([]);
+  const capacityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Initialize manager ─────────────────────────────────────────
 
@@ -54,12 +68,23 @@ export const [RealtimeProvider, useRealtime] = createContextHook(() => {
     });
     unsubRef.current = [u1, u2];
 
+    // Poll capacity info every 5s for UI awareness
+    capacityIntervalRef.current = setInterval(() => {
+      if (managerRef.current) {
+        setCapacityInfo(managerRef.current.getCapacityInfo());
+      }
+    }, 5000);
+
     if (user.onboarded) {
       manager.connect();
     }
 
     return () => {
       unsubRef.current.forEach((fn) => fn());
+      if (capacityIntervalRef.current) {
+        clearInterval(capacityIntervalRef.current);
+        capacityIntervalRef.current = null;
+      }
       manager.disconnect();
       managerRef.current = null;
     };
@@ -146,5 +171,8 @@ export const [RealtimeProvider, useRealtime] = createContextHook(() => {
     isConnected,
     isDegraded,
     broadcastTrade,
+    capacityInfo,
+    queueLength: capacityInfo.queueLength,
+    nearCapacity: capacityInfo.nearCapacity,
   };
 });

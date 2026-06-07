@@ -56,6 +56,46 @@ const MAX_BACKOFF_MS = 30_000;
 /** Base reconnect delay */
 const BASE_BACKOFF_MS = 1500;
 
+// ── Capacity-aware gating ───────────────────────────────────────────
+
+/** Fraction of tier cap at which we start preemptively degrading new connections */
+const CAPACITY_THRESHOLD = 0.85;
+/** Max queued trades before we drop the oldest */
+const MAX_TRADE_QUEUE = 100;
+/** Gap between replayed trades to avoid burst-throttling ourselves */
+const TRADE_REPLAY_GAP_MS = 150;
+/** How often we recalculate capacity pressure */
+const CAPACITY_CHECK_MS = 10_000;
+
+/** Shared approximation of total connected players (best-effort from presence syncs) */
+let _globalPlayerEstimate = 0;
+let _globalPlayerEstimateAt = 0;
+
+export function updateGlobalPlayerEstimate(count: number): void {
+  _globalPlayerEstimate = count;
+  _globalPlayerEstimateAt = Date.now();
+}
+
+export function getGlobalPlayerEstimate(): { count: number; age: number } {
+  return { count: _globalPlayerEstimate, age: Date.now() - _globalPlayerEstimateAt };
+}
+
+/** Returns true if we should gate (delay/prevent) new connections because the tier is near capacity */
+export function isNearCapacity(tierCap: number = FREE_TIER_CONNECTION_CAP): boolean {
+  const threshold = Math.floor(tierCap * CAPACITY_THRESHOLD);
+  return _globalPlayerEstimate >= threshold && Date.now() - _globalPlayerEstimateAt < 60_000;
+}
+
+/** Returns a recommended backoff delay (ms) when gating connections. Scales with how full the tier is. */
+export function capacityBackoffMs(tierCap: number = FREE_TIER_CONNECTION_CAP): number {
+  if (!isNearCapacity(tierCap)) return 0;
+  const fillRatio = Math.min(1, _globalPlayerEstimate / tierCap);
+  // Linear scale from 2s at 85% full to 30s at 100% full
+  const base = 2000 + (fillRatio - CAPACITY_THRESHOLD) / (1 - CAPACITY_THRESHOLD) * 28_000;
+  const jitter = Math.random() * 3000;
+  return Math.round(base + jitter);
+}
+
 // ── Subscriber types ────────────────────────────────────────────────
 
 export type ConnectionListener = (state: ConnectionState) => void;
@@ -99,7 +139,12 @@ export class RealtimeManager {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private latencyTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private capacityTimer: ReturnType<typeof setInterval> | null = null;
   private msgBucket: number[] = []; // timestamps of recent sends for self-throttling
+
+  // ── Local trade queue ──────────────────────────────────────────
+  private tradeQueue: TradeBroadcast[] = [];
+  private draining = false;
 
   private destroyed = false;
 
@@ -166,23 +211,32 @@ export class RealtimeManager {
   }
 
   broadcastTrade(trade: Omit<TradeBroadcast, "handle" | "at">): void {
-    if (!this.canSend()) return;
-
     const msg: TradeBroadcast = {
       ...trade,
       handle: this.handle,
       at: Date.now(),
     };
 
-    this.recordSend();
-    this.channel
-      ?.send({ type: "broadcast", event: "trade", payload: msg })
-      .then(() => {
-        // success — noop
-      })
-      .catch((e) => {
-        console.log("[Realtime] broadcast error", e);
-      });
+    if (this.canSend()) {
+      this.recordSend();
+      this.channel
+        ?.send({ type: "broadcast", event: "trade", payload: msg })
+        .then(() => {
+          // success — noop
+        })
+        .catch((e) => {
+          console.log("[Realtime] broadcast error, queuing", e);
+          this.enqueueTrade(msg);
+        });
+    } else {
+      // Connection unhealthy — queue for later replay
+      this.enqueueTrade(msg);
+    }
+  }
+
+  /** Number of trades queued for replay */
+  get queueLength(): number {
+    return this.tradeQueue.length;
   }
 
   onConnectionChange(fn: ConnectionListener): () => void {
@@ -220,7 +274,56 @@ export class RealtimeManager {
       .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
   }
 
+  /** Returns capacity details for UI awareness */
+  getCapacityInfo(): { estimate: number; tierCap: number; nearCapacity: boolean; queueLength: number } {
+    const tierCap = this.estimateTierCap();
+    return {
+      estimate: _globalPlayerEstimate,
+      tierCap,
+      nearCapacity: isNearCapacity(tierCap),
+      queueLength: this.tradeQueue.length,
+    };
+  }
+
   // ── Internal ────────────────────────────────────────────────────
+
+  private enqueueTrade(msg: TradeBroadcast): void {
+    this.tradeQueue.push(msg);
+    // Drop oldest if queue exceeds cap
+    while (this.tradeQueue.length > MAX_TRADE_QUEUE) {
+      this.tradeQueue.shift();
+    }
+    console.log("[Realtime] trade queued", { queueLength: this.tradeQueue.length });
+  }
+
+  private async drainQueue(): Promise<void> {
+    if (this.draining || this.tradeQueue.length === 0) return;
+    if (this.state.quality !== "connected") return;
+
+    this.draining = true;
+    console.log("[Realtime] draining trade queue", { count: this.tradeQueue.length });
+
+    while (this.tradeQueue.length > 0 && this.state.quality === "connected") {
+      const msg = this.tradeQueue[0];
+      if (!this.canSend()) {
+        // Throttled — stop draining, will resume on next heartbeat
+        break;
+      }
+      this.recordSend();
+      try {
+        await this.channel?.send({ type: "broadcast", event: "trade", payload: msg });
+        this.tradeQueue.shift(); // only dequeue on success
+      } catch (e) {
+        console.log("[Realtime] drain error, pausing", e);
+        break; // keep queued, retry next cycle
+      }
+      // Small gap between replays to avoid burst-throttling
+      await new Promise((r) => setTimeout(r, TRADE_REPLAY_GAP_MS));
+    }
+
+    this.draining = false;
+    console.log("[Realtime] drain finished", { remaining: this.tradeQueue.length });
+  }
 
   private trackPresence(): void {
     if (!this.channel || this.state.quality !== "connected") return;
@@ -278,8 +381,34 @@ export class RealtimeManager {
 
     this.players = seen;
     this.state = { ...this.state, playerCount: seen.size };
+
+    // Update the global estimate so other instances can gate
+    updateGlobalPlayerEstimate(seen.size);
+
     this.notifyPlayers();
     this.notifyConnection();
+  }
+
+  private startCapacityCheck(): void {
+    this.capacityTimer = setInterval(() => {
+      const tierCap = this.estimateTierCap();
+      if (isNearCapacity(tierCap) && this.state.quality === "connected") {
+        console.log("[Realtime] capacity pressure detected", {
+          estimate: _globalPlayerEstimate,
+          tierCap,
+          threshold: Math.floor(tierCap * CAPACITY_THRESHOLD),
+        });
+        // Don't disconnect, but flag degraded so the UI can show a subtle indicator
+        // The connection stays up — we just signal that new connections may be gated
+      }
+    }, CAPACITY_CHECK_MS);
+  }
+
+  /** Best-effort tier cap estimate based on connected players */
+  private estimateTierCap(): number {
+    if (this.state.playerCount <= FREE_TIER_CONNECTION_CAP) return FREE_TIER_CONNECTION_CAP;
+    if (this.state.playerCount <= PRO_TIER_CONNECTION_CAP) return PRO_TIER_CONNECTION_CAP;
+    return 999_999; // effectively unlimited
   }
 
   private onTradeReceived(payload: Record<string, unknown>): void {
@@ -306,7 +435,11 @@ export class RealtimeManager {
     this.trackPresence();
     this.startHeartbeat();
     this.startLatencyProbe();
+    this.startCapacityCheck();
     this.notifyConnection();
+
+    // Replay any queued trades now that we're connected
+    this.drainQueue();
 
     console.log("[Realtime] connected", { handle: this.handle, playerCount: this.state.playerCount });
   }
@@ -328,13 +461,16 @@ export class RealtimeManager {
     this.clearReconnectTimer();
     const attempt = this.state.reconnectAttempt + 1;
     this.state = { ...this.state, reconnectAttempt: attempt };
-    const delay = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
+    // Base exponential backoff + capacity-aware extra delay
+    const baseDelay = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
+    const capacityExtra = capacityBackoffMs(this.estimateTierCap());
     const jitter = Math.random() * 1000;
-    console.log("[Realtime] reconnecting in", Math.round(delay + jitter), "ms (attempt", attempt, ")");
+    const delay = baseDelay + capacityExtra + jitter;
+    console.log("[Realtime] reconnecting in", Math.round(delay), "ms (attempt", attempt, capacityExtra > 0 ? ", capacity-gated" : "", ")");
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, delay + jitter);
+    }, delay);
   }
 
   private startHeartbeat(): void {
@@ -380,6 +516,10 @@ export class RealtimeManager {
     if (this.latencyTimer) {
       clearInterval(this.latencyTimer);
       this.latencyTimer = null;
+    }
+    if (this.capacityTimer) {
+      clearInterval(this.capacityTimer);
+      this.capacityTimer = null;
     }
   }
 
