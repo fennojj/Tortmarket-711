@@ -2,9 +2,11 @@ import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Platform, useWindowDimensions, type AppStateStatus } from "react-native";
 import { useApp } from "@/providers/AppProvider";
 import { useAlerts } from "@/providers/AlertsProvider";
 import { useMarkets } from "@/providers/MarketsProvider";
+import { useAdminConfig } from "@/providers/AdminConfigProvider";
 import {
   analyzePortfolio,
   blendWithPredictions,
@@ -15,18 +17,43 @@ import {
   type MarketEdge,
 } from "@/utils/signals";
 import { planAgentActions, buildCoachSystemPrompt, type AgentAction } from "@/utils/agent";
+import {
+  buildPassiveEngagementSensors,
+  evaluateEngagementTrigger,
+  type EngagementDecision,
+  type EngagementTriggerInput,
+  type PassiveEngagementSensors,
+} from "@/utils/engagementFormula";
 
 const STORAGE_KEY = "tortsite.engagement.v1";
 
 export type EngagementEvent =
   | { kind: "session_start"; at: number }
+  | { kind: "app_state_change"; at: number; appState: AppStateStatus }
   | { kind: "view_market"; at: number; marketId: string }
   | { kind: "view_alert"; at: number; alertId: string }
   | { kind: "play"; at: number; marketId: string; side: "YES" | "NO"; cost: number }
   | { kind: "claim"; at: number; amount: number }
   | { kind: "redeem"; at: number; cost: number }
   | { kind: "coach_open"; at: number }
-  | { kind: "coach_message"; at: number };
+  | { kind: "coach_message"; at: number }
+  | {
+      kind: "notification_shown";
+      at: number;
+      triggerId: string;
+      triggerKind: EngagementTriggerInput["kind"];
+      channel: EngagementTriggerInput["channel"];
+      score: number;
+    }
+  | {
+      kind: "notification_blocked";
+      at: number;
+      triggerId: string;
+      triggerKind: EngagementTriggerInput["kind"];
+      channel: EngagementTriggerInput["channel"];
+      score: number;
+      reason: string;
+    };
 
 interface EngagementState {
   sessionCount: number;
@@ -67,8 +94,11 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
   const { user, canClaimDaily } = useApp();
   const { predictions } = useAlerts();
   const { markets } = useMarkets();
+  const { config } = useAdminConfig();
+  const window = useWindowDimensions();
 
   const [state, setState] = useState<EngagementState>(DEFAULT_STATE);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [sessionBumped, setSessionBumped] = useState<boolean>(false);
 
@@ -88,6 +118,23 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
       setHydrated(true);
     }
   }, [stateQuery.data, hydrated]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      setAppState(nextAppState);
+      const event: EngagementEvent = { kind: "app_state_change", at: Date.now(), appState: nextAppState };
+      setState((prev) => {
+        const next: EngagementState = {
+          ...prev,
+          lastActivityAt: nextAppState === "active" ? event.at : prev.lastActivityAt,
+          eventLog: [...prev.eventLog, event].slice(-100),
+        };
+        persistRef.current(next);
+        return next;
+      });
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (!hydrated || sessionBumped) return;
@@ -148,6 +195,16 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
     [user, state.lastActivityAt, state.sessionCount],
   );
 
+  const sensors: PassiveEngagementSensors = useMemo(
+    () =>
+      buildPassiveEngagementSensors({
+        appState,
+        platform: Platform.OS,
+        window,
+      }),
+    [appState, window],
+  );
+
   const portfolio: PortfolioInsights = useMemo(
     () => analyzePortfolio(user.positions, markets),
     [user.positions, markets],
@@ -186,6 +243,51 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
     return { viewedMarketsToday, playsToday, coachMessagesToday, claimedToday };
   }, [state.eventLog]);
 
+  const evaluateTrigger = useCallback(
+    (input: EngagementTriggerInput): EngagementDecision =>
+      evaluateEngagementTrigger(input, {
+        config: config.engagement,
+        user,
+        signals,
+        eventLog: state.eventLog,
+        sensors,
+        now: Date.now(),
+      }),
+    [config.engagement, user, signals, state.eventLog, sensors],
+  );
+
+  const recordNotificationDecision = useCallback(
+    (input: EngagementTriggerInput, decision: EngagementDecision) => {
+      const event: EngagementEvent = decision.allowed
+        ? {
+            kind: "notification_shown",
+            at: Date.now(),
+            triggerId: input.id,
+            triggerKind: input.kind,
+            channel: input.channel,
+            score: decision.score,
+          }
+        : {
+            kind: "notification_blocked",
+            at: Date.now(),
+            triggerId: input.id,
+            triggerKind: input.kind,
+            channel: input.channel,
+            score: decision.score,
+            reason: decision.reason,
+          };
+      setState((prev) => {
+        const next: EngagementState = {
+          ...prev,
+          eventLog: [...prev.eventLog, event].slice(-100),
+        };
+        persistRef.current(next);
+        return next;
+      });
+    },
+    [],
+  );
+
   const coachSystemPrompt = useMemo(
     () =>
       buildCoachSystemPrompt({
@@ -204,12 +306,15 @@ export const [EngagementProvider, useEngagement] = createContextHook(() => {
     eventLog: state.eventLog,
     viewedMarketIds: state.viewedMarketIds,
     signals,
+    sensors,
     portfolio,
     edges,
     actions,
     topAction: actions[0] ?? null,
     coachSystemPrompt,
     todayStats,
+    evaluateTrigger,
+    recordNotificationDecision,
     track,
     dismissAction,
   };

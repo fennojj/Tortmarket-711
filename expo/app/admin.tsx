@@ -397,6 +397,9 @@ function GrowthRulesTab(): React.ReactElement {
   const updateSponsorLevel = <K extends keyof typeof config.sponsorLevel>(key: K, value: (typeof config.sponsorLevel)[K]) => {
     updateSection("sponsorLevel", { ...config.sponsorLevel, [key]: value });
   };
+  const updateEngagement = <K extends keyof typeof config.engagement>(key: K, value: (typeof config.engagement)[K]) => {
+    updateSection("engagement", { ...config.engagement, [key]: value });
+  };
 
   const updateSponsorMarketIds = (raw: string) => {
     const ids = raw
@@ -419,7 +422,7 @@ function GrowthRulesTab(): React.ReactElement {
             <Text style={styles.statusTitle}>Growth control center</Text>
           </View>
           <Text style={styles.sectionHint}>
-            Tune SMS alerts, the recruiting goal, trade rewards, sponsor-funded boosts, and automated campaign thresholds without changing code.
+            Tune SMS alerts, the recruiting goal, trade rewards, sponsor boosts, and the responsible engagement score without changing code.
           </Text>
           <View style={styles.actionRow}>
             <Pressable style={[styles.btn, styles.btnGhost]} onPress={resetConfig}>
@@ -428,6 +431,28 @@ function GrowthRulesTab(): React.ReactElement {
             </Pressable>
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Responsible engagement formula</Text>
+        <View style={styles.statusCard}>
+          <Text style={styles.sectionHint}>
+            Score = motivation + timing + reward + social pull + urgency + sponsor fit, minus fatigue, intrusion, and repetition risk.
+          </Text>
+        </View>
+        <ToggleRule label="Enable formula gate" value={config.engagement.enabled} onChange={(v) => updateEngagement("enabled", v)} />
+        <NumberField label="Minimum in-app score" value={config.engagement.minInAppTriggerScore} onChange={(v) => updateEngagement("minInAppTriggerScore", v)} />
+        <NumberField label="Minimum SMS score" value={config.engagement.minSmsTriggerScore} onChange={(v) => updateEngagement("minSmsTriggerScore", v)} />
+        <NumberField label="Max daily triggers" value={config.engagement.maxDailyTriggers} onChange={(v) => updateEngagement("maxDailyTriggers", v)} />
+        <NumberField label="Cooldown minutes" value={config.engagement.cooldownMinutes} onChange={(v) => updateEngagement("cooldownMinutes", v)} />
+        <ToggleRule label="Quiet hours enabled" value={config.engagement.quietHoursEnabled} onChange={(v) => updateEngagement("quietHoursEnabled", v)} />
+        <NumberField label="Quiet hours start (0-23)" value={config.engagement.quietHoursStart} onChange={(v) => updateEngagement("quietHoursStart", v)} />
+        <NumberField label="Quiet hours end (0-23)" value={config.engagement.quietHoursEnd} onChange={(v) => updateEngagement("quietHoursEnd", v)} />
+        <NumberField label="Motivation weight" value={config.engagement.motivationWeight} onChange={(v) => updateEngagement("motivationWeight", v)} />
+        <NumberField label="Timing weight" value={config.engagement.timingWeight} onChange={(v) => updateEngagement("timingWeight", v)} />
+        <NumberField label="Reward weight" value={config.engagement.rewardWeight} onChange={(v) => updateEngagement("rewardWeight", v)} />
+        <NumberField label="Social pull weight" value={config.engagement.socialWeight} onChange={(v) => updateEngagement("socialWeight", v)} />
+        <NumberField label="Urgency weight" value={config.engagement.urgencyWeight} onChange={(v) => updateEngagement("urgencyWeight", v)} />
+        <NumberField label="Sponsor fit weight" value={config.engagement.sponsorFitWeight} onChange={(v) => updateEngagement("sponsorFitWeight", v)} />
+        <NumberField label="Fatigue penalty per trigger" value={config.engagement.fatiguePenaltyPerTrigger} onChange={(v) => updateEngagement("fatiguePenaltyPerTrigger", v)} />
 
         <Text style={styles.sectionTitle}>SMS triggers</Text>
         <ToggleRule label="Enable SMS relay" value={config.sms.enabled} onChange={(v) => updateSms("enabled", v)} />

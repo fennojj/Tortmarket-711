@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/providers/AppProvider";
 import { useMarkets } from "@/providers/MarketsProvider";
 import { useAdminConfig } from "@/providers/AdminConfigProvider";
+import { useEngagement } from "@/providers/EngagementProvider";
 import { sendSms, formatSmsAlert } from "@/utils/sms";
+import type { EngagementTriggerInput } from "@/utils/engagementFormula";
 
 export interface InAppNotification {
   id: string;
@@ -215,6 +217,30 @@ const STATIC_ALERTS: Omit<InAppNotification, "id" | "createdAt">[] = [
   },
 ];
 
+function shownKeyFor(notif: InAppNotification): string {
+  return notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`;
+}
+
+function toTriggerInput(notif: InAppNotification, channel: EngagementTriggerInput["channel"]): EngagementTriggerInput {
+  const lowerTitle = notif.title.toLowerCase();
+  const marketUrgency = notif.kind === "trade"
+    ? notif.urgent ? 92 : 62
+    : notif.urgent ? 88 : notif.kind === "breaking" ? 74 : 42;
+  const socialPull = notif.kind === "social" ? 82 : 28;
+  const rewardValue = notif.source === "REWARDS" || notif.source === "REFERRAL" || notif.source === "STREAK ALERT" ? 78 : 30;
+  const sponsorFit = notif.source.includes("SPONSOR") || lowerTitle.includes("sponsor") ? 82 : 16;
+  return {
+    id: notif.id,
+    kind: notif.kind,
+    channel,
+    urgent: notif.urgent,
+    rewardValue,
+    socialPull,
+    marketUrgency,
+    sponsorFit,
+  };
+}
+
 function pickAlert(
   markets: { id: string; caseName: string; yesPrice: number; change24h: number }[],
   shown: Set<string>,
@@ -266,6 +292,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   const { user } = useApp();
   const { markets } = useMarkets();
   const { config } = useAdminConfig();
+  const { evaluateTrigger, recordNotificationDecision } = useEngagement();
 
   const [current, setCurrent] = useState<InAppNotification | null>(null);
   const shownKeys = useRef<Set<string>>(new Set());
@@ -276,10 +303,6 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     setCurrent(null);
   }, []);
 
-  const pushNotification = useCallback((notif: InAppNotification) => {
-    setCurrent(notif);
-  }, []);
-
   const relaySms = useCallback(
     (notif: InAppNotification) => {
       if (!config.sms.enabled) return;
@@ -288,14 +311,50 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       const qualifiesBreaking = config.sms.sendBreaking && notif.kind === "breaking";
       const qualifiesPriceMove = config.sms.sendPriceMoves && notif.kind === "trade" && !!notif.urgent;
       if (!qualifiesUrgent && !qualifiesBreaking && !qualifiesPriceMove) return;
+
+      const trigger = toTriggerInput(notif, "sms");
+      const decision = evaluateTrigger(trigger);
+      recordNotificationDecision(trigger, decision);
+      if (!decision.allowed) {
+        console.log("[Engagement] SMS blocked", { reason: decision.reason, score: decision.score.toFixed(1) });
+        return;
+      }
+
       const msg = formatSmsAlert(notif.title, notif.body);
       sendSms(user.ghlContactId, msg).catch((e) =>
         console.log("[SMS] relay error", e),
       );
       console.log("[SMS] relayed alert", notif.title.slice(0, 40));
     },
-    [user.smsOptedIn, user.ghlContactId, config.sms],
+    [user.smsOptedIn, user.ghlContactId, config.sms, evaluateTrigger, recordNotificationDecision],
   );
+
+  const showNotification = useCallback(
+    (notif: InAppNotification): boolean => {
+      const trigger = toTriggerInput(notif, "in_app");
+      const decision = evaluateTrigger(trigger);
+      recordNotificationDecision(trigger, decision);
+      if (!decision.allowed) {
+        shownKeys.current.add(shownKeyFor(notif));
+        console.log("[Engagement] notification blocked", {
+          reason: decision.reason,
+          score: decision.score.toFixed(1),
+          threshold: decision.threshold,
+        });
+        return false;
+      }
+      shownKeys.current.add(shownKeyFor(notif));
+      sentCount.current += 1;
+      setCurrent(notif);
+      relaySms(notif);
+      return true;
+    },
+    [evaluateTrigger, recordNotificationDecision, relaySms],
+  );
+
+  const pushNotification = useCallback((notif: InAppNotification) => {
+    showNotification(notif);
+  }, [showNotification]);
 
   const scheduleNext = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -306,13 +365,10 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       if (sentCount.current >= config.sms.maxPerSession) return;
       const notif = pickAlert(markets, shownKeys.current, config.sms.priceMoveThresholdCents);
       if (!notif) return;
-      shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
-      sentCount.current += 1;
-      setCurrent(notif);
-      relaySms(notif);
+      showNotification(notif);
       scheduleNext();
     }, delay);
-  }, [markets, relaySms, config.sms]);
+  }, [markets, showNotification, config.sms]);
 
   // Boot: fire first notification ~35-45s after user is onboarded
   useEffect(() => {
@@ -321,17 +377,14 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       if (sentCount.current >= config.sms.maxPerSession) return;
       const notif = pickAlert(markets, shownKeys.current, config.sms.priceMoveThresholdCents);
       if (!notif) return;
-      shownKeys.current.add(notif.id.startsWith("dynamic") ? notif.id : `static-${notif.title.slice(0, 20)}`);
-      sentCount.current += 1;
-      setCurrent(notif);
-      relaySms(notif);
+      showNotification(notif);
       scheduleNext();
     }, Math.max(5, config.sms.firstDelaySeconds) * 1000 + Math.random() * 10_000);
 
     return () => clearTimeout(boot);
   // Only run once after onboarding
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.onboarded, relaySms, config.sms.firstDelaySeconds, config.sms.maxPerSession, config.sms.priceMoveThresholdCents]);
+  }, [user.onboarded, showNotification, config.sms.firstDelaySeconds, config.sms.maxPerSession, config.sms.priceMoveThresholdCents]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -60,12 +60,31 @@ export interface SponsorLevelConfig {
   tradeTriggerCopy: string;
 }
 
+export interface EngagementFormulaConfig {
+  enabled: boolean;
+  minInAppTriggerScore: number;
+  minSmsTriggerScore: number;
+  maxDailyTriggers: number;
+  cooldownMinutes: number;
+  quietHoursEnabled: boolean;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  motivationWeight: number;
+  timingWeight: number;
+  rewardWeight: number;
+  socialWeight: number;
+  urgencyWeight: number;
+  sponsorFitWeight: number;
+  fatiguePenaltyPerTrigger: number;
+}
+
 export interface AdminConfig {
   sms: SmsTriggerConfig;
   recruiting: RecruitingConfig;
   rewards: RewardConfig;
   campaigns: CampaignAutomationConfig;
   sponsorLevel: SponsorLevelConfig;
+  engagement: EngagementFormulaConfig;
 }
 
 export const DEFAULT_ADMIN_CONFIG: AdminConfig = {
@@ -119,6 +138,23 @@ export const DEFAULT_ADMIN_CONFIG: AdminConfig = {
     rewardMultiplier: 2,
     tradeTriggerCopy: "Sponsored bonus active: buy this market and both you + the sponsor leaderboard get boosted.",
   },
+  engagement: {
+    enabled: true,
+    minInAppTriggerScore: 42,
+    minSmsTriggerScore: 62,
+    maxDailyTriggers: 8,
+    cooldownMinutes: 12,
+    quietHoursEnabled: true,
+    quietHoursStart: 21,
+    quietHoursEnd: 8,
+    motivationWeight: 1.25,
+    timingWeight: 1,
+    rewardWeight: 0.75,
+    socialWeight: 0.8,
+    urgencyWeight: 1.1,
+    sponsorFitWeight: 0.45,
+    fatiguePenaltyPerTrigger: 7,
+  },
 };
 
 function mergeAdminConfig(raw: Partial<AdminConfig> | null | undefined): AdminConfig {
@@ -128,6 +164,7 @@ function mergeAdminConfig(raw: Partial<AdminConfig> | null | undefined): AdminCo
     rewards: { ...DEFAULT_ADMIN_CONFIG.rewards, ...(raw?.rewards ?? {}) },
     campaigns: { ...DEFAULT_ADMIN_CONFIG.campaigns, ...(raw?.campaigns ?? {}) },
     sponsorLevel: { ...DEFAULT_ADMIN_CONFIG.sponsorLevel, ...(raw?.sponsorLevel ?? {}) },
+    engagement: { ...DEFAULT_ADMIN_CONFIG.engagement, ...(raw?.engagement ?? {}) },
   };
 }
 
