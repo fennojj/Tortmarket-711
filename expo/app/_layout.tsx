@@ -16,6 +16,7 @@ import { MarketsProvider } from "@/providers/MarketsProvider";
 import { LiveSignalsProvider } from "@/providers/LiveSignalsProvider";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import { AdminConfigProvider } from "@/providers/AdminConfigProvider";
+import { RealtimeProvider } from "@/providers/RealtimeProvider";
 import OnboardingModal from "@/components/OnboardingModal";
 import SponsorMapToggle from "@/components/SponsorMapToggle";
 import InAppToast from "@/components/InAppToast";
@@ -78,6 +79,7 @@ export default function RootLayout() {
         <MarketsProvider>
           <AdminConfigProvider>
           <AppProvider>
+            <RealtimeProvider>
             <AlertsProvider>
               <LiveSignalsProvider>
               <EngagementProvider>
@@ -104,6 +106,7 @@ export default function RootLayout() {
               </EngagementProvider>
               </LiveSignalsProvider>
             </AlertsProvider>
+            </RealtimeProvider>
           </AppProvider>
           </AdminConfigProvider>
         </MarketsProvider>

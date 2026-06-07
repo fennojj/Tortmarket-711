@@ -13,6 +13,7 @@ import {
   parseRefFromUrl,
   PENDING_REF_KEY,
 } from "@/utils/referrals";
+import { getGlobalBroadcastFn } from "@/utils/realtime";
 import {
   fetchUnclaimedReferrals,
   markReferralsClaimed,
@@ -212,6 +213,20 @@ export const [AppProvider, useApp] = createContextHook(() => {
       };
       setLastPlay(playEvent);
       console.log("[AppProvider] play emitted", playEvent);
+
+      // Broadcast trade to all connected players in real time
+      const broadcast = getGlobalBroadcastFn();
+      if (broadcast) {
+        broadcast({
+          marketId: args.marketId,
+          side: args.side,
+          shares: args.shares,
+          priceCents: args.priceCents,
+          handle: user.handle,
+          at: Date.now(),
+        });
+      }
+
       if (totalReward > 0) {
         console.log("[Rewards] trade reward", {
           tradeXp,
