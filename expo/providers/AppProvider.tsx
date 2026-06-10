@@ -324,15 +324,22 @@ export const [AppProvider, useApp] = createContextHook(() => {
   }, [persistMutation]);
 
   const registerUser = useCallback(
-    (args: { handle: string; email: string; source?: string; referredBy?: string; variant?: string }) => {
+    (args: { handle: string; email: string; displayName?: string; source?: string; referredBy?: string; variant?: string }) => {
       const ref = normalizeRefCode(args.referredBy) ?? pendingRef;
       const isSelfRef = ref && user.referralCode && ref === user.referralCode;
       const appliedRef = isSelfRef ? null : ref;
       const inviteeBonus = appliedRef ? config.recruiting.inviteeBonusPoints : 0;
 
+      // auto-guess displayName from email local-part if not provided
+      const guessedName = args.displayName?.trim() || args.email.split("@")[0]?.replace(/[^a-zA-Z]/g, "").slice(0, 20) || "";
+      const displayName = guessedName
+        ? guessedName.charAt(0).toUpperCase() + guessedName.slice(1).toLowerCase()
+        : undefined;
+
       const next: User = {
         ...user,
         handle: args.handle.startsWith("@") ? args.handle : `@${args.handle}`,
+        displayName: displayName || undefined,
         email: args.email.trim().toLowerCase(),
         source: args.source ?? "poc-direct",
         joinedAt: Date.now(),

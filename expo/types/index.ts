@@ -48,6 +48,7 @@ export interface LeaderboardTitle {
 export interface User {
   id: string;
   handle: string;
+  displayName?: string;
   pointBalance: number;
   positions: Position[];
   titles: LeaderboardTitle[];

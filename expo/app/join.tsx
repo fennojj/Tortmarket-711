@@ -14,7 +14,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Gift, Sparkles, Trophy, Users, Zap } from "lucide-react-native";
+import { Gift, Sparkles, Trophy, Users, Zap, ArrowRight, UserCircle } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
 import { normalizeRefCode } from "@/utils/referrals";
@@ -33,6 +33,16 @@ function autoHandleFromEmail(email: string): string {
   return `tort-${Math.floor(Math.random() * 9999)}`;
 }
 
+function guessFirstName(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  // split on dots/underscores/hyphens, take the first part
+  const parts = local.split(/[._\-+]/).filter(Boolean);
+  const namePart = parts[0] ?? local;
+  const clean = namePart.replace(/[^a-zA-Z]/g, "").slice(0, 16);
+  if (clean.length >= 2) return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+  return "";
+}
+
 export default function JoinScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ ref?: string; v?: string }>();
@@ -48,6 +58,8 @@ export default function JoinScreen(): React.ReactElement {
 
   const [variant, setVariant] = useState<JoinVariant | null>(null);
   const [email, setEmail] = useState<string>("");
+  const [displayName, setDisplayName] = useState<string>("");
+  const [showNameStep, setShowNameStep] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [ndaVisible, setNdaVisible] = useState<boolean>(false);
@@ -114,11 +126,12 @@ export default function JoinScreen(): React.ReactElement {
       registerUser({
         handle: autoHandleFromEmail(trimmed),
         email: trimmed,
+        displayName: displayName.trim() || undefined,
         source: code ? "referral" : "join-link",
         referredBy: code ?? undefined,
         variant: variant ?? undefined,
       });
-      console.log("[Join] submitted", { variant, hasRef: !!code });
+      console.log("[Join] submitted", { variant, hasRef: !!code, hasName: !!displayName.trim() });
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
@@ -141,6 +154,15 @@ export default function JoinScreen(): React.ReactElement {
         return;
       }
       setError("");
+      // show name capture step before NDA
+      if (!showNameStep) {
+        setDisplayName(guessFirstName(trimmed));
+        setShowNameStep(true);
+        if (Platform.OS !== "web") {
+          Haptics.selectionAsync().catch(() => {});
+        }
+        return;
+      }
     }
     if (Platform.OS !== "web") {
       Haptics.selectionAsync().catch(() => {});
@@ -184,7 +206,7 @@ export default function JoinScreen(): React.ReactElement {
               Drop your email. Claim instantly.
             </Text>
 
-            {!isReturning ? (
+            {!isReturning && !showNameStep ? (
               <TextInput
                 value={email}
                 onChangeText={(t) => {
@@ -205,6 +227,33 @@ export default function JoinScreen(): React.ReactElement {
               />
             ) : null}
 
+            {/* ── Name capture step (variant B) ── */}
+            {!isReturning && showNameStep ? (
+              <Animated.View style={[styles.nameStepWrapB, { opacity: fade, transform: [{ translateY: lift }] }]}>
+                <Text style={styles.namePromptB}>First name for the next few seconds?</Text>
+                <TextInput
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  placeholder="Your first name"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  style={styles.nameInputB}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="go"
+                  onSubmitEditing={onClaim}
+                  autoFocus
+                  testID="join-name"
+                />
+                <Pressable
+                  onPress={() => { setShowNameStep(false); setDisplayName(""); }}
+                  hitSlop={12}
+                  testID="join-name-back"
+                >
+                  <Text style={styles.nameBackText}>← Back to email</Text>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+
             {error ? <Text style={styles.errText}>{error}</Text> : null}
 
             <Pressable
@@ -217,7 +266,7 @@ export default function JoinScreen(): React.ReactElement {
                 <ActivityIndicator color="#0B1220" />
               ) : (
                 <Text style={styles.ctaTextB}>
-                  {isReturning ? "Open Tort Market" : "Claim instantly"}
+                  {isReturning ? "Open Tort Market" : showNameStep ? "Continue" : "Claim instantly"}
                 </Text>
               )}
             </Pressable>
@@ -286,7 +335,7 @@ export default function JoinScreen(): React.ReactElement {
             <Stat icon={<Users size={14} color="#fff" />} value="1.2K+" label="traders" />
           </View>
 
-          {!isReturning ? (
+          {!isReturning && !showNameStep ? (
             <TextInput
               value={email}
               onChangeText={(t) => {
@@ -302,8 +351,41 @@ export default function JoinScreen(): React.ReactElement {
               keyboardType="email-address"
               returnKeyType="go"
               onSubmitEditing={onClaim}
+              autoFocus
               testID="join-email"
             />
+          ) : null}
+
+          {/* ── Name capture step ── */}
+          {!isReturning && showNameStep ? (
+            <Animated.View style={[styles.nameStepWrap, { opacity: fade, transform: [{ translateY: lift }] }]}>
+              <View style={styles.nameIconRow}>
+                <UserCircle size={18} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.namePrompt}>First name for the next few seconds?</Text>
+              </View>
+              <Text style={styles.nameHint}>We'll use it to personalize your market brief.</Text>
+              <TextInput
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="Your first name"
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                style={styles.nameInput}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={onClaim}
+                autoFocus
+                testID="join-name"
+              />
+              <Pressable
+                onPress={() => { setShowNameStep(false); setDisplayName(""); }}
+                style={styles.nameBackBtn}
+                hitSlop={12}
+                testID="join-name-back"
+              >
+                <Text style={styles.nameBackText}>← Back to email</Text>
+              </Pressable>
+            </Animated.View>
           ) : null}
 
           {error ? <Text style={styles.errText}>{error}</Text> : null}
@@ -318,7 +400,7 @@ export default function JoinScreen(): React.ReactElement {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.ctaText}>
-                {isReturning ? "Open Tort Market" : "Claim my bonus →"}
+                {isReturning ? "Open Tort Market" : showNameStep ? "Continue" : "Claim my bonus →"}
               </Text>
             )}
           </Pressable>
