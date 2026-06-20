@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import {
   ArrowUpRight,
@@ -58,7 +59,14 @@ export default function AlertCard({ alert, onUpvote }: Props): React.ReactElemen
   }, [alert.kind]);
 
   const openMarket = () => {
-    if (alert.marketId) router.push(`/market/${alert.marketId}`);
+    if (alert.marketId) {
+      router.push(`/market/${alert.marketId}`);
+      return;
+    }
+    // Alerts without a market (announcements, etc.) — give haptic feedback
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    }
   };
 
   return (

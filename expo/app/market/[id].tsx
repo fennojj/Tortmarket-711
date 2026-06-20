@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useLayoutEffect, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, Pressable, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "@/constants/colors";
 import { CATEGORY_LABEL } from "@/mocks/markets";
@@ -14,9 +14,16 @@ import SponsorSlot from "@/components/SponsorSlot";
 export default function MarketDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { markets } = useMarkets();
   const market = useMemo(() => markets.find((m) => m.id === id), [id, markets]);
+
+  useLayoutEffect(() => {
+    if (market) {
+      navigation.setOptions({ title: market.caseName.split("(")[0].trim() });
+    }
+  }, [navigation, market]);
 
   if (!market) {
     return (
@@ -42,8 +49,6 @@ export default function MarketDetailScreen(): React.ReactElement {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: market.caseName.split("(")[0].trim() }} />
       <View style={{ flex: 1, backgroundColor: Colors.bg }}>
         <ScrollView
           style={styles.wrap}
@@ -149,7 +154,6 @@ export default function MarketDetailScreen(): React.ReactElement {
           </Pressable>
         </View>
       </View>
-    </>
   );
 }
 

@@ -537,10 +537,8 @@ export class RealtimeManager {
     const windowStart = now - 1000;
     this.msgBucket = this.msgBucket.filter((t) => t > windowStart);
     if (this.msgBucket.length >= SELF_THROTTLE_MSG_PER_SEC) {
-      if (this.state.quality !== "throttled") {
-        this.state = { ...this.state, quality: "throttled" };
-        this.notifyConnection();
-      }
+      this.state = { ...this.state, quality: "throttled" as const };
+      this.notifyConnection();
       return false;
     }
     return true;
