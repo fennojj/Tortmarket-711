@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
 import { Gavel, Sparkles, ShieldCheck, X, TrendingUp, Trophy, Zap, Users, Gift } from "lucide-react-native";
+import TortMarketLogo from "@/components/TortMarketLogo";
 
 const PRIVACY_URL = "https://tort-market.com/privacy";
 const TERMS_URL = "https://tort-market.com/terms";
@@ -47,6 +48,10 @@ function ValuePropStep({ onNext }: { onNext: () => void }) {
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <View style={{ alignItems: "center", marginTop: 8 }}>
+        <TortMarketLogo size="sm" withGlow />
+      </View>
+
       <View style={styles.pocPill}>
         <Sparkles size={11} color="#8A5A00" />
         <Text style={styles.pocText}>PROOF OF CONCEPT · NO REAL MONEY</Text>

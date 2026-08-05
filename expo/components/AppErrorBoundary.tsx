@@ -1,7 +1,8 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { TriangleAlert, RotateCcw } from "lucide-react-native";
+import { RotateCcw } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
+import TortMarketLogo from "@/components/TortMarketLogo";
 
 interface Props {
   children: React.ReactNode;
@@ -44,7 +45,7 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
         <View style={styles.screen} testID="app-error-boundary">
           <View style={styles.card}>
             <View style={styles.iconWrap}>
-              <TriangleAlert size={22} color={Colors.orange} />
+              <TortMarketLogo size="sm" />
             </View>
             <Text style={styles.title}>Something crashed</Text>
             <Text style={styles.body}>

@@ -38,6 +38,7 @@ import {
 } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
+import TortMarketLogo from "@/components/TortMarketLogo";
 import {
   EXPO_GO_ANDROID_URL,
   EXPO_GO_IOS_URL,
@@ -197,6 +198,9 @@ export default function InviteScreen(): React.ReactElement {
           end={{ x: 1, y: 1 }}
           style={styles.hero}
         >
+          <View style={{ alignItems: "center", marginBottom: 10 }}>
+            <TortMarketLogo size="sm" withGlow />
+          </View>
           <View style={styles.heroBadge}>
             <Rocket size={11} color="#fff" />
             <Text style={styles.heroBadgeText}>{recruitingConfig.goalMembers.toLocaleString()} FOUNDER PUSH</Text>

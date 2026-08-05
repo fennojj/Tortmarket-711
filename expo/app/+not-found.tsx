@@ -2,12 +2,14 @@ import { Link, Stack } from "expo-router";
 
 import { StyleSheet, Text, View } from "react-native";
 import { Colors } from "@/constants/colors";
+import TortMarketLogo from "@/components/TortMarketLogo";
 
 export default function NotFoundScreen(): React.ReactElement {
   return (
     <>
       <Stack.Screen options={{ title: "Not Found" }} />
       <View style={styles.container}>
+        <TortMarketLogo size="md" withGlow style={{ marginBottom: 24 }} />
         <Text style={styles.title}>This screen does not exist.</Text>
         <Link href="/" style={styles.link}>
           <Text style={styles.linkText}>Go to markets</Text>

@@ -14,13 +14,14 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Gift, Sparkles, Trophy, Users, Zap, ArrowRight, UserCircle } from "lucide-react-native";
+import { Sparkles, Trophy, Users, Zap, ArrowRight, UserCircle } from "lucide-react-native";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/providers/AppProvider";
 import { normalizeRefCode } from "@/utils/referrals";
 import { getOrAssignJoinVariant, type JoinVariant } from "@/utils/abTest";
 import JoinSponsorReel from "@/components/JoinSponsorReel";
 import NDAModal from "@/components/NDAModal";
+import TortMarketLogo from "@/components/TortMarketLogo";
 
 function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -195,9 +196,7 @@ export default function JoinScreen(): React.ReactElement {
           <Animated.View
             style={[styles.contentB, { opacity: fade, transform: [{ translateY: lift }] }]}
           >
-            <Animated.View style={[styles.giftBubbleB, { transform: [{ scale: pulseScale }] }]}>
-              <Gift size={36} color="#FDE68A" />
-            </Animated.View>
+            <TortMarketLogo size="md" withGlow style={{ marginBottom: 18 }} />
 
             <Text style={styles.titleB}>
               +{recruitingConfig.inviteeBonusPoints.toLocaleString()} pts
@@ -299,9 +298,7 @@ export default function JoinScreen(): React.ReactElement {
         <Animated.View
           style={[styles.content, { opacity: fade, transform: [{ translateY: lift }] }]}
         >
-          <Animated.View style={[styles.giftBubble, { transform: [{ scale: pulseScale }] }]}>
-            <Gift size={42} color="#fff" />
-          </Animated.View>
+          <TortMarketLogo size="lg" withGlow style={{ marginBottom: 22 }} />
 
           <View style={styles.eyebrowPill}>
             <Sparkles size={11} color="#FDE68A" />
@@ -451,28 +448,6 @@ const styles = StyleSheet.create({
     paddingTop: 140,
     paddingBottom: 40,
     alignItems: "center",
-  },
-  giftBubble: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    backgroundColor: "rgba(250, 204, 21, 0.22)",
-    borderWidth: 1.5,
-    borderColor: "rgba(250, 204, 21, 0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 22,
-  },
-  giftBubbleB: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: "rgba(250, 204, 21, 0.18)",
-    borderWidth: 1.5,
-    borderColor: "rgba(250, 204, 21, 0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 18,
   },
   eyebrowPill: {
     flexDirection: "row",
