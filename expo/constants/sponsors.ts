@@ -1,3 +1,16 @@
+export const TIERS: SponsorSlotTier[] = [
+  "title",
+  "presenting",
+  "coach",
+  "leaderboard",
+  "banner",
+  "native",
+  "tier",
+  "sticky",
+  "ribbon",
+  "bounty",
+];
+
 export type SponsorSlotTier =
   | "title"
   | "presenting"

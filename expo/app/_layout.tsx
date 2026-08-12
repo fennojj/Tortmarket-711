@@ -64,6 +64,10 @@ function RootLayoutNav() {
         name="sponsor-updates"
         options={{ title: "Sponsor Updates", presentation: "card" }}
       />
+      <Stack.Screen
+        name="sponsor-demo"
+        options={{ title: "Sponsor Demo", presentation: "modal" }}
+      />
     </Stack>
   );
 }

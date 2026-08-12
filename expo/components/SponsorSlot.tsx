@@ -12,7 +12,7 @@ import {
 import { Megaphone } from "lucide-react-native";
 import { useSponsorMap } from "@/providers/SponsorMapProvider";
 import { useSponsorConfig } from "@/providers/SponsorConfigProvider";
-import { type SponsorSlotTier } from "@/constants/sponsors";
+import { type SponsorCreative, type SponsorSlotTier } from "@/constants/sponsors";
 
 export type { SponsorSlotTier };
 
@@ -45,6 +45,8 @@ interface SponsorSlotProps {
   style?: ViewStyle | ViewStyle[];
   compact?: boolean;
   inline?: boolean;
+  /** Optional creative override used by the sponsor demo preview */
+  creative?: SponsorCreative;
 }
 
 function openUrl(url?: string) {
@@ -64,10 +66,11 @@ export default function SponsorSlot({
   style,
   compact,
   inline,
+  creative: creativeOverride,
 }: SponsorSlotProps): React.ReactElement | null {
   const { visible } = useSponsorMap();
   const { creativeFor } = useSponsorConfig();
-  const creative = creativeFor(tier);
+  const creative = creativeOverride ?? creativeFor(tier);
   const hasCreative = creative?.active === true;
 
   // No creative assigned → only show placeholder when sponsor map is on

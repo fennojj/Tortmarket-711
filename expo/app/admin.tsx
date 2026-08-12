@@ -26,6 +26,7 @@ import {
   Star,
   X,
   Megaphone,
+  LayoutTemplate,
   Share2,
   Copy,
   Zap,
@@ -960,6 +961,7 @@ function UpdatesTab() {
 
 // ─── PITCH TAB ──────────────────────────────────────────────────────────────
 function PitchTab() {
+  const router = useRouter();
   const pitchText = useMemo(() => {
     const lines = [
       "Tort Market — Sponsorship Opportunities",
@@ -1029,6 +1031,22 @@ function PitchTab() {
           <Text style={styles.ratePrice}>{TIER_PRICES[t]}</Text>
         </View>
       ))}
+
+      <View style={[styles.rateRow, { marginTop: 18, backgroundColor: Colors.blueSoft, borderRadius: 12, padding: 14, alignItems: "center" }]}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[styles.rateName, { color: Colors.blue }]}>Interactive sponsor demo</Text>
+          <Text style={[styles.sectionHint, { marginTop: 0 }]}>
+            Let sponsors add their own banner and preview every slot in the conference game.
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.push("/sponsor-demo")}
+          style={[styles.smallBtn, styles.smallBtnPrimary]}
+        >
+          <LayoutTemplate size={13} color="#fff" />
+          <Text style={[styles.smallBtnText, { color: "#fff" }]}>Open demo</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -1403,6 +1421,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   smallBtnText: { color: Colors.text, fontSize: 11, fontWeight: "800" },
+  smallBtnPrimary: { backgroundColor: Colors.blue },
 
   editor: {
     minHeight: 220,

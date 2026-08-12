@@ -14,6 +14,7 @@ import { Crown, Flame, Trophy, Zap } from "lucide-react-native";
 import { useSponsorConfig } from "@/providers/SponsorConfigProvider";
 import { useSponsorUpdates } from "@/providers/SponsorUpdatesProvider";
 import { LEADERBOARD } from "@/mocks/leaderboard";
+import { type SponsorCreative } from "@/constants/sponsors";
 
 interface RewardTick {
   handle: string;
@@ -42,7 +43,12 @@ function fmt(n: number): string {
  * Claim Your Seat screen. Updates every 2.5s with a small randomized
  * delta so it feels live without needing a backend.
  */
-export default function JoinSponsorReel(): React.ReactElement | null {
+interface JoinSponsorReelProps {
+  /** Optional creative override used by the sponsor demo preview */
+  demoCreative?: SponsorCreative;
+}
+
+export default function JoinSponsorReel({ demoCreative }: JoinSponsorReelProps): React.ReactElement | null {
   const { creativeFor } = useSponsorConfig();
   const { featured } = useSponsorUpdates();
 
@@ -50,10 +56,11 @@ export default function JoinSponsorReel(): React.ReactElement | null {
   const leaderboard = creativeFor("leaderboard");
   const title = creativeFor("title");
   const sponsor =
-    (presenting?.active && presenting) ||
-    (leaderboard?.active && leaderboard) ||
-    (title?.active && title) ||
-    null;
+    demoCreative ??
+    ((presenting?.active && presenting) ||
+      (leaderboard?.active && leaderboard) ||
+      (title?.active && title) ||
+      null);
 
   const featuredUpdate = featured[0] ?? null;
 
